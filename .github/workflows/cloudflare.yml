@@ -1,0 +1,87 @@
+# Veröffentlicht Athan auf Cloudflare Workers (kostenlos): Web-App + Push jede Minute.
+# Einmalig nötig – unter Settings → Secrets and variables → Actions:
+#   CLOUDFLARE_API_TOKEN   (Vorlage „Edit Cloudflare Workers“)
+#   CLOUDFLARE_ACCOUNT_ID
+name: Athan auf Cloudflare
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['web/**', 'cloudflare/**', 'server/core.mjs', '.github/workflows/cloudflare.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Zugangsdaten prüfen
+        id: check
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+            echo "### Cloudflare noch nicht eingerichtet" >> "$GITHUB_STEP_SUMMARY"
+            echo "Lege die Secrets CLOUDFLARE_API_TOKEN und CLOUDFLARE_ACCOUNT_ID an (siehe README)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.skip != '1'
+      - uses: actions/setup-node@v4
+        if: steps.check.outputs.skip != '1'
+        with:
+          node-version: '22'
+
+      - name: Tests
+        if: steps.check.outputs.skip != '1'
+        run: node tests/worker.test.mjs
+
+      - name: Speicher (KV) anlegen oder finden
+        if: steps.check.outputs.skip != '1'
+        working-directory: cloudflare
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 kv namespace list > ns.txt
+          ID=$(node -e '
+            const t = require("fs").readFileSync("ns.txt", "utf8");
+            const l = JSON.parse(t.slice(t.indexOf("["), t.lastIndexOf("]") + 1));
+            const n = l.find((x) => /athan-data$/.test(x.title));
+            process.stdout.write(n ? n.id : "");')
+          if [ -z "$ID" ]; then
+            npx --yes wrangler@4 kv namespace create athan-data | tee create.txt
+            ID=$(grep -oE '[0-9a-f]{32}' create.txt | head -1)
+          fi
+          test -n "$ID"
+          sed -i "s/__KV_ID__/$ID/" wrangler.toml
+
+      - name: Veröffentlichen
+        if: steps.check.outputs.skip != '1'
+        working-directory: cloudflare
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 deploy 2>&1 | tee deploy.txt
+          URL=$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev' deploy.txt | head -1 || true)
+          echo "URL=$URL" >> "$GITHUB_ENV"
+          {
+            echo "### Athan ist online"
+            echo ""
+            echo "**Öffne auf dem iPhone in Safari:** $URL"
+            echo ""
+            echo "Dann Teilen → Zum Home-Bildschirm."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Online-Prüfung
+        if: steps.check.outputs.skip != '1' && env.URL != ''
+        run: |
+          sleep 5
+          curl -fsS "$URL/api/config" | grep -q vapidPublicKey && echo "API ✓"
+          curl -fsS -o /dev/null -w "Startseite %{http_code}\n" "$URL/"
+          curl -fsS -r 0-15 -o /dev/null -w "Audio %{http_code} %{content_type}\n" "$URL/audio/makkah_mulla"

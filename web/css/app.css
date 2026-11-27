@@ -17,6 +17,8 @@
   --sky-mid: #0D2148;
   --sky-low: #183568;
   --glow: rgba(216, 178, 110, .0);
+  --glow-x: 50%;
+  --glow-y: 30%;
 
   --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", "URW Palladio L", Georgia, serif;
   --sans: system-ui, -apple-system, "Segoe UI Variable Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -46,7 +48,7 @@ a { color: var(--gold); }
 .sky {
   position: fixed; inset: 0; z-index: -1;
   background:
-    radial-gradient(120% 60% at 50% 78%, var(--glow), transparent 70%),
+    radial-gradient(75% 50% at var(--glow-x) var(--glow-y), var(--glow), transparent 72%),
     linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 52%, var(--sky-low) 100%);
   transition: background 2s linear;
 }
@@ -136,6 +138,8 @@ a { color: var(--gold); }
 }
 .prompt p { margin: 0 0 12px; color: var(--parchment-2); font-size: .93rem; }
 .inline-ic { width: 1.1em; height: 1.1em; vertical-align: -3px; color: var(--iznik); }
+
+.onboard { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 18px; }
 
 /* Zeitenliste */
 .times-panel { margin-top: 18px; }
@@ -303,6 +307,15 @@ summary { cursor: pointer; color: var(--parchment-2); font-size: .92rem; padding
 .switch input { width: 20px; height: 20px; }
 .about p { color: var(--parchment-2); font-size: .9rem; }
 .small { font-size: .8rem !important; color: var(--parchment-3) !important; }
+
+details.more { padding-bottom: 14px; }
+details.more > summary { list-style: none; display: flex; align-items: center; justify-content: space-between; padding: 6px 0; }
+details.more > summary::-webkit-details-marker { display: none; }
+details.more > summary h3 { margin: 0; }
+details.more > summary::after { content: ""; width: 9px; height: 9px; border-right: 1.6px solid var(--gold); border-bottom: 1.6px solid var(--gold); transform: rotate(45deg); transition: transform .2s; margin-right: 6px; }
+details.more[open] > summary::after { transform: rotate(-135deg); }
+@media (min-width: 900px) { details.more { grid-column: 1 / -1; } }
+.more-actions { margin-top: 14px; }
 
 /* Athan-Overlay */
 .athan-overlay {

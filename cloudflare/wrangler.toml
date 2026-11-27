@@ -1,0 +1,22 @@
+# Cloudflare Worker: Web-App + Push jede Minute. Wird von .github/workflows/cloudflare.yml veröffentlicht.
+name = "athan"
+main = "worker.js"
+compatibility_date = "2025-09-01"
+workers_dev = true
+
+[assets]
+directory = "../web"
+binding = "ASSETS"
+
+[[kv_namespaces]]
+binding = "ATHAN"
+id = "__KV_ID__"
+
+[triggers]
+crons = ["* * * * *"]
+
+[vars]
+VAPID_SUBJECT = "https://github.com/BasselHamadeh/Athan"
+
+[observability]
+enabled = true

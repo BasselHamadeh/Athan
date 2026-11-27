@@ -42,25 +42,22 @@ Den Ordner `web/` auf einen kostenlosen Static-Host legen:
 
 Gebetszeiten, Qibla, Monatsplan und Athan funktionieren – Athan und Hinweise aber nur, **solange die App geöffnet ist**.
 
-### B) Mit Push-Server – Hinweise auch bei geschlossener App (empfohlen fürs iPhone)
+### B) Kostenlos mit Mitteilungen bei geschlossener App: Cloudflare (empfohlen)
 
-Der Server (`server/`, nur Node.js, keine Pakete) liefert die Web-App aus und schickt zu jeder Gebetszeit eine Push-Benachrichtigung – verschlüsselt nach Web-Push-Standard (VAPID, RFC 8291).
+Cloudflare Workers ist kostenlos und prüft **jede Minute**, ob ein Gebet fällig ist – auch wenn das Handy gesperrt ist. Keine Datenbank, kein eigener Server. (Vercel kann das im Gratis-Tarif nicht: dort laufen zeitgesteuerte Aufgaben nur einmal am Tag.)
 
-Mit Docker auf einem kleinen Server (VPS, Raspberry Pi o. ä.) mit eigener Domain:
+1. Kostenloses Konto auf **dash.cloudflare.com** anlegen.
+2. Links **Workers & Pages** öffnen (legt deine Adresse `…workers.dev` an).
+3. Die **Account ID** kopieren (steht auf der Workers-Seite rechts).
+4. **Profil → API Tokens → Create Token → Vorlage „Edit Cloudflare Workers“** → Token kopieren.
+5. Im GitHub-Repo unter **Settings → Secrets and variables → Actions** zwei Secrets anlegen: `CLOUDFLARE_API_TOKEN` und `CLOUDFLARE_ACCOUNT_ID`.
+6. **Actions → „Athan auf Cloudflare“ → Run workflow.** In der Zusammenfassung steht danach deine Adresse.
 
-```bash
-cd deploy
-ATHAN_DOMAIN=athan.deine-domain.de ATHAN_EMAIL=du@example.org docker compose up -d
-```
+Ab dann veröffentlicht jeder Push auf `main` automatisch neu.
 
-Caddy besorgt das HTTPS-Zertifikat automatisch. Ohne Docker: `node server/server.mjs` hinter einem HTTPS-Proxy (Beispiel für systemd: `deploy/athan.service`).
+### C) Eigener Server (Alternative)
 
-| Einstellung | Bedeutung |
-|---|---|
-| `PORT` | Port (Standard 8080) |
-| `DATA_DIR` | Speicherort für Schlüssel, Abos, Aufnahmen (Standard `./data`) |
-| `VAPID_SUBJECT` | `mailto:deine@adresse` – Apple verlangt eine gültige Kontaktangabe |
-| `TLS_CERT`, `TLS_KEY` | optional: HTTPS direkt im Server |
+Der Node-Server (`server/`, keine Pakete) kann dasselbe auf einem VPS oder Raspberry Pi: `cd deploy && ATHAN_DOMAIN=athan.deine-domain.de ATHAN_EMAIL=du@example.org docker compose up -d`.
 
 ### Auf dem iPhone einrichten
 
@@ -104,6 +101,7 @@ node tests/engine.test.mjs         # Gebetszeiten an Referenzorten
 cd windows && go test ./...        # Go-Engine = JS-Engine (7.140 Fälle)
 node tests/webpush.test.mjs        # Verschlüsselung = RFC-8291-Testvektor
 node tests/e2e-push.mjs            # Server → Push-Dienst → Entschlüsselung
+node tests/worker.test.mjs         # Cloudflare Worker: Planer, Sicherheit, Audio
 python3 tests/msicheck.py dist/Athan-Setup-1.0.0.msi dist/Athan.exe   # MSI zurücklesen
 ```
 
@@ -114,7 +112,8 @@ web/        Web-App (PWA) – auch die Oberfläche der Windows-App
   js/praytimes.js   Gebetszeiten, Qibla, Zeitzonen
   js/app.js         Oberfläche, Planer, Kompass
   sw.js             Offline + Push
-server/     Push-Server (Node, ohne Abhängigkeiten)
+server/     Push-Server (Node, ohne Abhängigkeiten) + gemeinsamer Kern
+cloudflare/ Cloudflare Worker (Web-App + Push jede Minute)
 windows/    Windows-App (Go): Tray, Athan, Benachrichtigungen, Autostart
 tools/      mksyso (Icon/Version für die EXE), mkmsi (MSI-Erzeuger)
 installer/  WiX-Quelle (Alternative)

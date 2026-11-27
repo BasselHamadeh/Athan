@@ -3,7 +3,7 @@ import { loadLocal, saveLocal, sanitize, DEFAULTS } from './store.js';
 import { Player, saveCustom, loadCustom } from './audio.js';
 import * as plat from './platform.js';
 
-const VERSION = '1.0.0';
+const VERSION = '1.1.0';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -77,36 +77,59 @@ function commit(change = {}) {
 }
 
 // ---------------- Himmel ----------------
-const KF = [
-  { a: -90, top: '#050F24', mid: '#0A1A38', low: '#122A55', glow: [0, 0, 0, 0], stars: 1 },
-  { a: -18, top: '#07142C', mid: '#0E2148', low: '#1A3263', glow: [120, 90, 160, 0.10], stars: 0.9 },
-  { a: -10, top: '#0D1A42', mid: '#24295C', low: '#3F3868', glow: [217, 154, 147, 0.20], stars: 0.45 },
-  { a: -4, top: '#15245A', mid: '#36386C', low: '#5A4670', glow: [233, 160, 120, 0.30], stars: 0.12 },
-  { a: 2, top: '#1B3468', mid: '#3E4A7C', low: '#6A5272', glow: [240, 180, 120, 0.32], stars: 0 },
-  { a: 10, top: '#15406E', mid: '#24557E', low: '#33627F', glow: [255, 220, 150, 0.14], stars: 0 },
-  { a: 35, top: '#113C68', mid: '#1C537E', low: '#2C6487', glow: [255, 230, 170, 0.09], stars: 0 },
-  { a: 90, top: '#0F3A66', mid: '#1A517C', low: '#2A6285', glow: [255, 230, 170, 0.07], stars: 0 },
+// Zwei Farbverläufe nach Sonnenhöhe: Morgen (Fajr → Shuruq → Vormittag) und Abend (Asr → Maghrib → Isha).
+const NIGHT = { top: '#040C20', mid: '#081833', low: '#0F2650', glow: [40, 60, 140, 0], stars: 1 };
+const NOON = { top: '#0C467E', mid: '#18659C', low: '#24709C', glow: [255, 245, 210, 0.10], stars: 0 };
+const MORNING = [
+  { a: -90, ...NIGHT },
+  { a: -18, top: '#060F28', mid: '#0C1D42', low: '#16305F', glow: [90, 80, 160, 0.10], stars: 0.9 },
+  { a: -12, top: '#0B1440', mid: '#1E225A', low: '#3A2F68', glow: [180, 120, 190, 0.22], stars: 0.6 },
+  { a: -5, top: '#141C52', mid: '#3A2F6A', low: '#6A4272', glow: [236, 150, 150, 0.32], stars: 0.2 },
+  { a: 2, top: '#1B2E66', mid: '#4A4A80', low: '#7A5068', glow: [250, 175, 120, 0.40], stars: 0 },
+  { a: 12, top: '#143C70', mid: '#2B5A8A', low: '#3F6A8A', glow: [255, 215, 150, 0.22], stars: 0 },
+  { a: 35, top: '#0E447A', mid: '#1B6296', low: '#2A6E98', glow: [255, 240, 200, 0.12], stars: 0 },
+  { a: 90, ...NOON },
+];
+const EVENING = [
+  { a: -90, ...NIGHT },
+  { a: -18, top: '#060F28', mid: '#0C1D42', low: '#16305F', glow: [60, 60, 140, 0.06], stars: 0.9 },
+  { a: -12, top: '#0D1336', mid: '#1E1D4E', low: '#2E2454', glow: [120, 70, 140, 0.14], stars: 0.6 },
+  { a: -6, top: '#171844', mid: '#3E2456', low: '#5A2A4A', glow: [200, 80, 90, 0.28], stars: 0.2 },
+  { a: 0, top: '#231F52', mid: '#6A3456', low: '#9A3E32', glow: [245, 110, 70, 0.42], stars: 0 },
+  { a: 8, top: '#1E3462', mid: '#5A4A6A', low: '#8A5040', glow: [250, 160, 90, 0.34], stars: 0 },
+  { a: 22, top: '#163E6C', mid: '#3A5C7E', low: '#7A6448', glow: [245, 200, 120, 0.24], stars: 0 },
+  { a: 35, top: '#0E447A', mid: '#1B6296', low: '#2A6E98', glow: [255, 240, 200, 0.12], stars: 0 },
+  { a: 90, ...NOON },
 ];
 const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
 const lerp = (a, b, t) => a + (b - a) * t;
-const mix = (h1, h2, t) => `rgb(${hex(h1).map((v, i) => Math.round(lerp(v, hex(h2)[i], t))).join(',')})`;
-function paintSky(now) {
+const mixRGB = (h1, h2, t) => hex(h1).map((v, i) => Math.round(lerp(v, hex(h2)[i], t)));
+const rgb = (c) => `rgb(${c.join(',')})`;
+function paintSky(now, ctx) {
   const root = document.documentElement.style;
-  if (!S.location) { root.setProperty('--stars', 0.6); return; }
-  let alt = sunAltitude(now, S.location.lat, S.location.lon);
+  if (!S.location || !ctx) { root.setProperty('--stars', 0.6); return; }
+  const alt = sunAltitude(now, S.location.lat, S.location.lon);
+  const evening = isFinite(ctx.t.dhuhr) ? now >= ctx.t.dhuhr || now < ctx.t.fajr - 6 * 3600000 : zonedParts(now, tz()).h >= 12;
+  const KF = evening ? EVENING : MORNING;
   let i = KF.findIndex((k) => k.a >= alt); if (i <= 0) i = 1;
   const a = KF[i - 1], b = KF[i], t = Math.min(1, Math.max(0, (alt - a.a) / (b.a - a.a)));
-  const zp = zonedParts(now, tz());
-  const evening = zp.h >= 12;
-  let low = mix(a.low, b.low, t);
-  if (evening && alt > -12 && alt < 8) low = mix(a.low, '#7A3E4E', 0.55 * (1 - Math.abs(alt + 2) / 10)); // Abendrot
-  root.setProperty('--sky-top', mix(a.top, b.top, t));
-  root.setProperty('--sky-mid', mix(a.mid, b.mid, t));
-  root.setProperty('--sky-low', low);
+  const top = mixRGB(a.top, b.top, t);
+  root.setProperty('--sky-top', rgb(top));
+  root.setProperty('--sky-mid', rgb(mixRGB(a.mid, b.mid, t)));
+  root.setProperty('--sky-low', rgb(mixRGB(a.low, b.low, t)));
   const g = a.glow.map((v, k) => lerp(v, b.glow[k], t));
   root.setProperty('--glow', `rgba(${g.slice(0, 3).map(Math.round).join(',')},${g[3].toFixed(3)})`);
   root.setProperty('--stars', lerp(a.stars, b.stars, t).toFixed(2));
-  document.querySelector('meta[name="theme-color"]').content = mix(a.top, b.top, t).replace(/rgb\((\d+),(\d+),(\d+)\)/, (_, r, g2, bb) => '#' + [r, g2, bb].map((x) => (+x).toString(16).padStart(2, '0')).join(''));
+  // Lichtschein dort, wo die Sonne gerade steht (links morgens, rechts abends)
+  const rise = ctx.t.sunrise, set = ctx.t.sunset;
+  let fx = evening ? 0.9 : 0.1, fy = 0.34;
+  if (isFinite(rise) && isFinite(set) && now >= rise && now <= set) {
+    const f = (now - rise) / (set - rise);
+    fx = 0.1 + 0.8 * f; fy = 0.32 - 0.2 * Math.sin(Math.PI * f);
+  }
+  root.setProperty('--glow-x', `${Math.round(fx * 100)}%`);
+  root.setProperty('--glow-y', `${Math.round(fy * 100)}%`);
+  document.querySelector('meta[name="theme-color"]').content = '#' + top.map((x) => x.toString(16).padStart(2, '0')).join('');
 }
 
 // ---------------- Heute ----------------
@@ -204,20 +227,22 @@ function renderHeader(now) {
 
 function renderToday(now) {
   renderHeader(now);
+  $('#onboard').hidden = !!S.location;
+  $('#arc').hidden = !S.location;
   if (!S.location) {
     $('#nextLabel').textContent = 'Willkommen';
     $('#nextName').textContent = 'Wo betest du?';
     $('#nextAr').textContent = '';
     $('#countdown').textContent = '';
-    $('#nextAt').innerHTML = '<button class="btn btn-gold" id="pickPlace" type="button">Ort wählen</button>';
-    $('#pickPlace').onclick = goPickPlace;
+    $('#nextAt').textContent = 'Wähle deinen Ort, dann berechnet Athan die Gebetszeiten.';
     $('#times').innerHTML = ''; $('#extras').innerHTML = ''; $('#methodNote').textContent = '';
     $('#arcMarks').innerHTML = ''; $('#orb').innerHTML = '';
+    renderPrompts();
     return null;
   }
   const ctx = dayContext(now);
   const minute = Math.floor(now / 60000);
-  if (minute !== lastMinute) { lastMinute = minute; renderArc(now, ctx); renderList(now, ctx); paintSky(now); renderPrompts(); }
+  if (minute !== lastMinute) { lastMinute = minute; renderArc(now, ctx); renderList(now, ctx); paintSky(now, ctx); renderPrompts(); }
   if (ctx.next) {
     const L = label(ctx.next.prayer, ctx.next.date);
     $('#nextLabel').textContent = ctx.next.prayer === 'sunrise' ? 'Die Fajr-Zeit endet mit' : 'Nächstes Gebet';
@@ -256,9 +281,10 @@ function checkSchedule(now) {
 }
 async function fire(e) {
   const L = label(e.prayer, e.date);
-  const mode = S.modes[e.prayer];
-  plat.showNotification(e.prayer === 'sunrise' ? `Sonnenaufgang (${L.ar})` : `Zeit für ${L.name} (${L.ar})`, {
-    body: `${fmtTime(e.at)} · ${S.location.name}`, tag: `prayer-${e.prayer}-${e.at}`, requireInteraction: mode === 'athan',
+  const mode = e.test ? 'athan' : S.modes[e.prayer];
+  const title = e.test ? 'Athan – Test' : e.prayer === 'sunrise' ? `Sonnenaufgang (${L.ar})` : `Zeit für ${L.name} (${L.ar})`;
+  plat.showNotification(title, {
+    body: `${fmtTime(e.at)} · ${S.location.name}`, tag: e.test ? 'athan-test' : `prayer-${e.prayer}-${e.at}`, requireInteraction: mode === 'athan' && !e.test,
   });
   if (mode === 'athan' && e.prayer !== 'sunrise') {
     player.stop();
@@ -309,7 +335,7 @@ async function enableAll() {
 }
 
 // ---------------- Qibla ----------------
-let heading = null, compassOn = false, alignedBuzz = false;
+const qiblaVisible = () => !document.querySelector('[data-view="qibla"]').hidden && !document.hidden;
 function buildDial() {
   let t = '';
   for (let a = 0; a < 360; a += 5) {
@@ -332,52 +358,84 @@ function renderQibla() {
     <line class="qp-line" x1="160" y1="160" x2="${x}" y2="${y}"/>
     <circle cx="160" cy="160" r="5" fill="#D8B26E"/>
     <g transform="translate(${x} ${y}) rotate(${b})">
-      <rect class="qp-kaaba" x="-11" y="-11" width="22" height="22" rx="2"/>
-      <line class="qp-band" x1="-11" y1="-4" x2="11" y2="-4"/>
+      <rect class="qp-kaaba" x="-12" y="-12" width="24" height="24" rx="2"/>
+      <line class="qp-band" x1="-12" y1="-4.5" x2="12" y2="-4.5"/>
     </g>`;
-  updateCompass();
+  Compass.update();
 }
-function updateCompass() {
-  const dial = $('#dial');
-  if (heading == null) { dial.style.transform = ''; $('#compass').classList.remove('aligned'); return; }
-  dial.style.transform = `rotate(${-heading}deg)`;
-  if (!S.location) return;
-  const b = qiblaBearing(S.location.lat, S.location.lon);
-  const diff = ((b - heading + 540) % 360) - 180;
-  const aligned = Math.abs(diff) < 4;
-  $('#compass').classList.toggle('aligned', aligned);
-  $('#qiblaStatus').textContent = aligned ? 'Du schaust in Richtung Qibla' : diff > 0 ? `Dreh dich ${Math.round(diff)}° nach rechts` : `Dreh dich ${Math.round(-diff)}° nach links`;
-  if (aligned && !alignedBuzz) { navigator.vibrate?.(60); alignedBuzz = true; }
-  if (!aligned) alignedBuzz = false;
-}
-let smooth = null;
-function onHeading(h) {
-  if (h == null || isNaN(h)) return;
-  const r = (h * Math.PI) / 180;
-  smooth = smooth ? { x: smooth.x * 0.8 + Math.cos(r) * 0.2, y: smooth.y * 0.8 + Math.sin(r) * 0.2 } : { x: Math.cos(r), y: Math.sin(r) };
-  heading = ((Math.atan2(smooth.y, smooth.x) * 180) / Math.PI + 360) % 360;
-  updateCompass();
-}
-async function startCompass() {
-  if (compassOn) return;
-  const DOE = window.DeviceOrientationEvent;
-  if (!DOE) { $('#qiblaStatus').textContent = 'Dieses Gerät hat keinen Kompass. Richte dich nach der Gradzahl.'; return; }
-  if (typeof DOE.requestPermission === 'function') {
-    try { if ((await DOE.requestPermission()) !== 'granted') { $('#qiblaStatus').textContent = 'Zugriff auf den Kompass wurde abgelehnt.'; return; } } catch { return; }
-  }
-  compassOn = true;
-  const scr = () => (screen.orientation?.angle ?? window.orientation ?? 0);
-  let got = false;
-  window.addEventListener('deviceorientation', (e) => {
-    if (typeof e.webkitCompassHeading === 'number') { got = true; onHeading(e.webkitCompassHeading + scr()); }
-  });
-  window.addEventListener('deviceorientationabsolute', (e) => {
-    if (e.alpha != null) { got = true; onHeading(360 - e.alpha + scr()); }
-  });
-  $('#compassBtn').hidden = true;
-  $('#qiblaStatus').textContent = 'Kompass läuft …';
-  setTimeout(() => { if (!got) { $('#qiblaStatus').textContent = 'Kein Kompass gefunden. Richte dich nach der Gradzahl.'; } }, 2500);
-}
+
+// Kompass startet von selbst. Das iPhone verlangt einmalig eine Erlaubnis – sie wird beim Tippen
+// auf „Qibla“ angefragt (dafür braucht iOS eine Berührung).
+const Compass = {
+  needsPerm: typeof window.DeviceOrientationEvent?.requestPermission === 'function',
+  listening: false, got: false, denied: false, smooth: null, heading: null, acc: null, rot: 0, buzz: false, timer: 0,
+  listen() {
+    if (this.listening || !window.DeviceOrientationEvent) return;
+    this.listening = true;
+    const scr = () => (screen.orientation?.angle ?? window.orientation ?? 0);
+    window.addEventListener('deviceorientation', (e) => {
+      if (typeof e.webkitCompassHeading === 'number') this.onHeading(e.webkitCompassHeading + scr(), e.webkitCompassAccuracy);
+      else if (e.absolute && e.alpha != null) this.onHeading(360 - e.alpha + scr(), null); // Firefox
+    }, true);
+    window.addEventListener('deviceorientationabsolute', (e) => { if (e.alpha != null) this.onHeading(360 - e.alpha + scr(), null); }, true);
+  },
+  request() {
+    if (!this.needsPerm || this.got) { this.listen(); return; }
+    try {
+      DeviceOrientationEvent.requestPermission().then((r) => {
+        this.denied = r !== 'granted';
+        if (!this.denied) { localStorage.setItem('athan.motion', '1'); this.listen(); }
+        this.status();
+      }).catch(() => this.status());
+    } catch { this.status(); }
+  },
+  onShow() {
+    this.listen();
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => this.status(false), 1500);
+    this.status(true);
+  },
+  onHeading(h, acc) {
+    if (h == null || isNaN(h) || !qiblaVisible()) return;
+    const first = !this.got;
+    this.got = true; this.acc = acc;
+    const r = (h * Math.PI) / 180;
+    this.smooth = this.smooth ? { x: this.smooth.x * 0.82 + Math.cos(r) * 0.18, y: this.smooth.y * 0.82 + Math.sin(r) * 0.18 } : { x: Math.cos(r), y: Math.sin(r) };
+    this.heading = ((Math.atan2(this.smooth.y, this.smooth.x) * 180) / Math.PI + 360) % 360;
+    if (first) this.status();
+    this.update();
+  },
+  update() {
+    const dial = $('#dial');
+    if (this.heading == null) { dial.style.transform = ''; $('#compass').classList.remove('aligned'); return; }
+    // kürzesten Weg drehen – kein Herumwirbeln beim Übergang 359° → 0°
+    const delta = ((((-this.heading - this.rot) % 360) + 540) % 360) - 180;
+    this.rot += delta;
+    dial.style.transform = `rotate(${this.rot}deg)`;
+    if (!S.location) return;
+    const diff = ((qiblaBearing(S.location.lat, S.location.lon) - this.heading + 540) % 360) - 180;
+    const aligned = Math.abs(diff) < 4;
+    $('#compass').classList.toggle('aligned', aligned);
+    $('#qiblaStatus').textContent = aligned ? 'Du schaust in Richtung Qibla' : diff > 0 ? `Dreh dich ${Math.round(diff)}° nach rechts` : `Dreh dich ${Math.round(-diff)}° nach links`;
+    $('#compassHint').textContent = this.acc != null && (this.acc < 0 || this.acc > 25)
+      ? 'Der Kompass ist ungenau: Bewege das Handy einmal in Form einer Acht.'
+      : 'Halte das Handy flach vor dich.';
+    if (aligned && !this.buzz) { navigator.vibrate?.(60); this.buzz = true; }
+    if (!aligned) this.buzz = false;
+  },
+  status(initial = false) {
+    const btn = $('#compassBtn'), st = $('#qiblaStatus');
+    if (this.got) { btn.hidden = true; return; }
+    if (initial && !this.denied) { btn.hidden = true; st.textContent = 'Kompass wird gesucht …'; return; }
+    if (this.needsPerm) {
+      btn.hidden = false;
+      st.textContent = this.denied ? 'Kompass nicht erlaubt. Schließe Athan ganz, öffne es neu und tippe auf „Erlauben“.' : 'Tippe auf „Kompass einschalten“.';
+      return;
+    }
+    btn.hidden = true;
+    st.textContent = 'Kein Kompass auf diesem Gerät. Richte dich nach der Gradzahl.';
+  },
+};
 
 // ---------------- Monat ----------------
 function renderMonth() {
@@ -466,9 +524,9 @@ async function renderNotifyStatus() {
   if (perm === 'default') { el.innerHTML = 'Noch nicht erlaubt.'; return; }
   const info = await plat.detectServer();
   const sub = await plat.currentPushSubscription().catch(() => null);
-  if (info?.push && sub) el.innerHTML = '<b>Aktiv, auch bei geschlossener App.</b> Dein Push-Server meldet jede Gebetszeit. Der Athan selbst erklingt, wenn die App geöffnet ist.';
-  else if (info?.push) el.innerHTML = '<b>Erlaubt.</b> Das Push-Abo wird beim nächsten Speichern eingerichtet.';
-  else el.innerHTML = '<b>Aktiv, solange die App geöffnet ist.</b> Für Hinweise bei geschlossener App starte den mitgelieferten Push-Server.';
+  if (info?.push && sub) el.innerHTML = '<b>Aktiv, auch bei geschlossener App.</b> Du bekommst zu jeder Gebetszeit eine Mitteilung. Den Athan-Ton spielt das iPhone nur bei geöffneter App – tippe auf die Mitteilung.';
+  else if (info?.push) el.innerHTML = '<b>Erlaubt.</b> Die Mitteilungen werden gerade eingerichtet …';
+  else el.innerHTML = '<b>Aktiv, solange die App geöffnet ist.</b> Für Mitteilungen bei geschlossener App öffne Athan über deine Cloudflare-Adresse.';
 }
 
 // Ortssuche (Open-Meteo, ohne Schlüssel)
@@ -524,7 +582,7 @@ function route() {
   const valid = ['heute', 'qibla', 'monat', 'einstellungen'].includes(tab) ? tab : 'heute';
   $$('[data-view]').forEach((v) => (v.hidden = v.dataset.view !== valid));
   $$('.nav [data-tab]').forEach((a) => (a.dataset.tab === valid ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')));
-  if (valid === 'qibla') renderQibla();
+  if (valid === 'qibla') { renderQibla(); Compass.onShow(); }
   if (valid === 'monat') renderMonth();
   if (valid === 'einstellungen') renderSettings();
   window.scrollTo(0, 0);
@@ -563,9 +621,15 @@ function bind() {
     toast(`${INFO[k].name}: ${MODE_TEXT[next]}`);
   });
 
-  // Qibla
+  // Qibla: Erlaubnis direkt beim Tippen auf den Reiter (iOS braucht dafür eine Berührung)
   buildDial();
-  $('#compassBtn').onclick = startCompass;
+  $('.nav [data-tab="qibla"]').addEventListener('click', () => Compass.request());
+  $('#compassBtn').onclick = () => Compass.request();
+  $('#compass').addEventListener('click', () => Compass.request());
+
+  // Einrichtung
+  $('#obGps').onclick = useGPS;
+  $('#obSearch').onclick = goPickPlace;
 
   // Monat
   $('#prevMonth').onclick = () => { const d = new Date(Date.UTC(monthCursor.y, monthCursor.m - 2, 1)); monthCursor = { y: d.getUTCFullYear(), m: d.getUTCMonth() + 1 }; renderMonth(); };
@@ -631,14 +695,16 @@ function bind() {
     if (plat.isDesktop) { await plat.api('/api/test-athan', { method: 'POST' }).catch(() => toast('Test fehlgeschlagen')); return; }
     await player.unlock();
     const now = Date.now();
-    fire({ prayer: 'maghrib', at: now, date: zonedParts(now, tz()) });
+    fire({ prayer: 'maghrib', at: now, date: zonedParts(now, tz()), test: true });
   };
   $('#autostart').onchange = (e) => plat.api('/api/autostart', { method: 'POST', body: { enabled: e.target.checked } }).then((r) => { desktopState.autostart = r.autostart; }).catch(() => toast('Autostart konnte nicht geändert werden'));
   $('#openOnAthan').onchange = (e) => commit({ openOnAthan: e.target.checked });
 
   // erste Berührung schaltet Audio frei (iOS/Safari)
   document.addEventListener('pointerdown', () => player.unlock(), { once: true });
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) { lastMinute = -1; tick(); } });
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) { lastMinute = -1; tick(); if ((location.hash || '').includes('qibla')) Compass.onShow(); }
+  });
 
   // Push vom Service Worker, während die App offen ist → Athan abspielen
   navigator.serviceWorker?.addEventListener('message', (e) => {

@@ -3,7 +3,7 @@
 # Voraussetzung: Go 1.22 oder neuer.
 set -euo pipefail
 cd "$(dirname "$0")"
-VERSION="${VERSION:-1.0.0}"
+VERSION="${VERSION:-$(grep -oE "VERSION = '[0-9.]+'" web/js/app.js | grep -oE "[0-9]+\.[0-9]+\.[0-9]+")}"
 mkdir -p dist
 
 echo "→ Web-App in die Windows-App einbetten"
