@@ -31,24 +31,40 @@ jobs:
         shell: bash
         run: ./build.sh
 
-      - name: CAB-Varianten mit Windows prüfen (expand.exe)
+      - name: CAB-Diagnose (Referenz von makecab)
         continue-on-error: true
         shell: pwsh
         run: |
-          $exe = Resolve-Path dist/Athan.exe
-          $want = (Get-FileHash $exe).Hash
-          Push-Location tools
-          foreach ($m in 'fixed','flate','stored','none') { foreach ($c in 'true','false') {
-            $cab = "$env:RUNNER_TEMP\t-$m-$c.cab"
-            go run ./mkmsi -exe $exe -cabmode $m "-csum=$c" -cabout $cab | Out-Null
-            $dir = "$env:RUNNER_TEMP\x-$m-$c"; New-Item -ItemType Directory -Force $dir | Out-Null
-            $o = & expand.exe $cab "-F:*" $dir 2>&1
-            $f = Join-Path $dir 'AthanExe'
-            $ok = (Test-Path $f) -and ((Get-FileHash $f).Hash -eq $want)
-            $msg = if ($ok) { 'OK' } else { 'FEHLER ' + (($o | Out-String) -replace '\s+', ' ') }
-            Write-Host ("CAB-TEST {0,-7} csum={1,-5} {2}" -f $m, $c, $msg)
-          }}
+          $t = $env:RUNNER_TEMP
+          Copy-Item dist/Athan.exe "$t\AthanExe"
+          Push-Location $t
+          makecab.exe /D CompressionType=MSZIP AthanExe ref.cab | Out-Null
           Pop-Location
+          function Show($path) {
+            $b = [IO.File]::ReadAllBytes($path)
+            Write-Host "== $path ($($b.Length) Bytes)"
+            Write-Host ("HDR " + [BitConverter]::ToString($b, 0, 36))
+            Write-Host ("FOLDER " + [BitConverter]::ToString($b, 36, 8))
+            $cf = [BitConverter]::ToUInt32($b, 16); $cs = [BitConverter]::ToUInt32($b, 36)
+            Write-Host ("FILE " + [BitConverter]::ToString($b, $cf, $cs - $cf))
+            $o = $cs
+            for ($i = 0; $i -lt 3; $i++) {
+              $cb = [BitConverter]::ToUInt16($b, $o + 4)
+              Write-Host ("DATA$i " + [BitConverter]::ToString($b, $o, 8) + " | " + [BitConverter]::ToString($b, $o + 8, 16))
+              $o += 8 + $cb
+            }
+          }
+          Show "$t\ref.cab"
+          Push-Location tools
+          go run ./mkmsi -exe ../dist/Athan.exe -cabmode fixed -cabout "$t\mine.cab" | Out-Null
+          Pop-Location
+          Show "$t\mine.cab"
+          foreach ($c in 'ref','mine') {
+            $d = "$t\x-$c"; New-Item -ItemType Directory -Force $d | Out-Null
+            $o = & expand.exe "$t\$c.cab" "-F:*" $d 2>&1
+            Write-Host "EXPAND $c :" (($o | Out-String) -replace '\s+', ' ')
+            Get-ChildItem $d | ForEach-Object { Write-Host "  -> $($_.Name) $($_.Length)" }
+          }
 
       - name: MSI zusätzlich mit WiX
         continue-on-error: true
