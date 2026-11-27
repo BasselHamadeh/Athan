@@ -7,7 +7,7 @@ import { specialDay, hijriParts, moonPhaseName } from './hijri.js';
 import { initSky } from './sky.js';
 import { skyAt } from './palette.js';
 
-const VERSION = '1.4.0';
+const VERSION = '1.4.1';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -274,6 +274,9 @@ function renderSeason(now, ctx) {
   chip.classList.toggle('eid', sp?.kind === 'eid');
   if (sp) { $('#dayChipText').textContent = sp.de; $('#dayChipAr').textContent = sp.ar; }
   const ramadan = sp?.kind === 'ramadan';
+  // im Ramadan: Laterne statt Achtstern als Logo
+  const brand = $('.nav-brand img'), icon = ramadan ? 'icons/icon-ramadan.svg' : 'icons/icon.svg';
+  if (brand && !brand.src.endsWith(icon)) brand.src = icon;
   $('#ramadanBar').hidden = !ramadan;
   $('#lanterns').hidden = !(ramadan || sp?.kind === 'eid');
   if (ramadan) {

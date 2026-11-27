@@ -233,6 +233,52 @@ function drawMoon(ctx, family, w, h, now, isDay) {
   ctx.fillPath();
 }
 
+// ---------- Logo (wie das App-Symbol: Achtstern mit Mondsichel; im Ramadan eine Laterne) ----------
+const CRESCENT = [0.6277,0.5297,0.6248,0.544,0.6203,0.5579,0.6143,0.5712,0.6069,0.5838,0.598,0.5954,0.5879,0.606,0.5767,0.6153,0.5645,0.6234,0.5514,0.6299,0.5377,0.635,0.5235,0.6385,0.509,0.6403,0.4944,0.6405,0.4798,0.639,0.4656,0.6359,0.4517,0.6312,0.4385,0.625,0.4261,0.6173,0.4146,0.6083,0.4042,0.598,0.3951,0.5866,0.3873,0.5742,0.3809,0.561,0.3761,0.5473,0.3729,0.533,0.3713,0.5185,0.3713,0.5038,0.3731,0.4893,0.3764,0.4751,0.3813,0.4614,0.3878,0.4482,0.3957,0.4359,0.405,0.4246,0.4154,0.4144,0.427,0.4055,0.4395,0.3979,0.4528,0.3918,0.453,0.3918,0.4468,0.4016,0.4416,0.4121,0.4375,0.423,0.4346,0.4343,0.4328,0.4458,0.4323,0.4574,0.433,0.4691,0.435,0.4806,0.4381,0.4918,0.4424,0.5026,0.4477,0.513,0.4542,0.5227,0.4616,0.5317,0.4699,0.5398,0.479,0.5471,0.4888,0.5534,0.4993,0.5586,0.5102,0.5626,0.5215,0.5656,0.533,0.5673,0.5446,0.5678,0.5563,0.5671,0.5678,0.5652,0.579,0.562,0.5898,0.5578,0.6002,0.5524,0.6099,0.546,0.6189,0.5385,0.627,0.5302]; // Mondsichel aus icons/icon.svg, Koordinaten 0–1
+function logoImage(ramadan, pt = 22) {
+  const px = pt * 3, ctx = new DrawContext();
+  ctx.size = new Size(px, px); ctx.opaque = false; ctx.respectScreenScale = false;
+  const gold = new Color('#D8B26E'), light = new Color('#F3DBA4');
+  const poly = (pts, close = true) => { const p = new Path(); pts.forEach((q, i) => (i ? p.addLine(q) : p.move(q))); if (close) p.closeSubpath(); return p; };
+  const crescent = (cx, cy, size) => { // size = Breite des 512er-Symbols
+    const pts = [];
+    for (let i = 0; i < CRESCENT.length; i += 2) pts.push(new Point(cx + (CRESCENT[i] - 0.5) * size, cy + (CRESCENT[i + 1] - 0.512) * size));
+    ctx.addPath(poly(pts)); ctx.setFillColor(light); ctx.fillPath();
+  };
+  if (!ramadan) {
+    const k = px / 512;
+    ctx.setStrokeColor(gold); ctx.setLineWidth(Math.max(2.2, 17 * k * 1.25));
+    for (const off of [Math.PI / 4, 0]) { // zwei Quadrate → Achtstern
+      const r = 122 * Math.SQRT2 * k, pts = [];
+      for (let i = 0; i < 4; i++) { const a = off + i * Math.PI / 2; pts.push(new Point(256 * k + r * Math.cos(a), 262 * k + r * Math.sin(a))); }
+      ctx.addPath(poly(pts)); ctx.strokePath();
+    }
+    crescent(px / 2, px / 2, px);
+    ctx.setFillColor(light); ctx.fillEllipse(new Rect(291 * k, 209 * k, 18 * k, 18 * k));
+  } else {
+    // Ramadan-Laterne (wie in der App) mit Mondsichel
+    const s = (px * 0.94) / 118, ox = px * 0.36 - 20 * s, oy = px * 0.03;
+    const L = (x, y) => new Point(ox + x * s, oy + y * s);
+    ctx.setStrokeColor(gold); ctx.setLineWidth(Math.max(1.6, 1.4 * s));
+    ctx.addPath(poly([L(20, 0), L(20, 24)], false)); ctx.strokePath();
+    ctx.addPath(poly([L(13.5, 24), L(26.5, 24), L(24.3, 30.5), L(15.7, 30.5)])); ctx.setFillColor(gold); ctx.fillPath();
+    const body = [L(11, 30.5), L(29, 30.5), L(35, 44.5), L(35, 72.5), L(29, 83.5), L(11, 83.5), L(5, 72.5), L(5, 44.5)];
+    ctx.addPath(poly(body)); ctx.setFillColor(new Color('#FFC46E', 0.16)); ctx.fillPath();
+    ctx.addPath(poly(body)); ctx.strokePath();
+    ctx.setFillColor(new Color('#FFD48A', 0.6)); ctx.fillEllipse(new Rect(ox + 12.5 * s, oy + 47 * s, 15 * s, 22 * s));
+    ctx.setFillColor(new Color('#FFF1CC', 0.95)); ctx.fillEllipse(new Rect(ox + 16.8 * s, oy + 52.5 * s, 6.4 * s, 11 * s));
+    ctx.addPath(poly([L(14, 83.5), L(26, 83.5), L(23.4, 90), L(16.6, 90)])); ctx.setFillColor(gold); ctx.fillPath();
+    ctx.addPath(poly([L(20, 90), L(20, 99)], false)); ctx.strokePath();
+    ctx.fillEllipse(new Rect(ox + 17.6 * s, oy + 99.6 * s, 4.8 * s, 4.8 * s));
+    crescent(px * 0.74, px * 0.3, px * 1.05);
+  }
+  return ctx.getImage();
+}
+const isRamadanNow = (d) => hijriParts(d.now, C.tz, C.hijriAdj || 0).m === 9;
+function logo(stack, d, pt) {
+  try { const img = stack.addImage(logoImage(isRamadanNow(d), pt)); img.imageSize = new Size(pt, pt); return img; } catch { return null; }
+}
+
 // ---------- Bausteine ----------
 function text(stack, s, font, color, opts = {}) {
   const t = stack.addText(String(s));
@@ -271,7 +317,8 @@ function newWidget(family, d) {
 function small(d) {
   const w = newWidget('small', d);
   w.setPadding(10, 11, 9, 11);
-  const head = hstack(w, 4);
+  const head = hstack(w, 5);
+  logo(head, d, 14);
   text(head, C.name || 'Athan', Font.semiboldSystemFont(11), INK2, { scale: 0.75 });
   head.addSpacer(22); // Platz für den Mond
   w.addSpacer(4);
@@ -291,6 +338,7 @@ function medium(d) {
   const w = newWidget('medium', d);
   w.setPadding(12, 14, 12, 14);
   const head = hstack(w, 6);
+  logo(head, d, 16);
   text(head, C.name || 'Athan', Font.semiboldSystemFont(12), INK2);
   text(head, gregText(d.now, { weekday: 'short', day: 'numeric', month: 'short' }), Font.regularSystemFont(12), INK3);
   head.addSpacer(26); // Platz für den Mond
@@ -327,8 +375,10 @@ function large(d) {
   const tight = widgetSize('large')[1] < 345 || !!sp;
   const rowPad = tight ? 2.2 : 3.6, rowFont = tight ? 14 : 15;
   w.setPadding(15, 16, 13, 16);
-  text(w, C.name || 'Athan', Font.semiboldSystemFont(13), INK2);
-  w.addSpacer(2);
+  const head = hstack(w, 7);
+  logo(head, d, 20);
+  text(head, C.name || 'Athan', Font.semiboldSystemFont(13), INK2);
+  w.addSpacer(3);
   text(w, gregText(d.now, { weekday: 'long', day: 'numeric', month: 'long' }), serif(16, false), INK);
   const hj = hstack(w, 8);
   text(hj, hijriText(d.now, 'de'), Font.regularSystemFont(12), INK3, { scale: 0.75 });
@@ -417,7 +467,9 @@ function placeless() {
   const w = new ListWidget();
   const g = new LinearGradient(); g.colors = [new Color('#071430'), new Color('#183568')]; g.locations = [0, 1];
   w.backgroundGradient = g;
-  text(w, 'Athan', serif(18, true), GOLD);
+  const h = hstack(w, 8);
+  try { const img = h.addImage(logoImage(false, 26)); img.imageSize = new Size(26, 26); } catch { /* ohne Logo */ }
+  text(h, 'Athan', serif(18, true), GOLD);
   return w;
 }
 

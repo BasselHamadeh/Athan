@@ -40,7 +40,9 @@ class DrawContext {
   size = new Size(100, 100); respectScreenScale = false; opaque = true;
   #ops = []; #fill = 'black'; #path = null;
   setFillColor(c) { this.#fill = c.css(); }
-  setStrokeColor() {} setLineWidth() {}
+  #stroke = 'black'; #lw = 1;
+  setStrokeColor(c) { this.#stroke = c.css(); } setLineWidth(w) { this.#lw = w; }
+  strokePath() { if (this.#path) this.#ops.push(`<path d="${this.#path.d.join(' ')}" fill="none" stroke="${this.#stroke}" stroke-width="${this.#lw}" stroke-linejoin="miter"/>`); this.#path = null; }
   fillRect(r) { this.#ops.push(`<rect x="${r.x}" y="${r.y}" width="${r.width}" height="${r.height}" fill="${this.#fill}"/>`); }
   fillEllipse(r) { this.#ops.push(`<ellipse cx="${r.x + r.width / 2}" cy="${r.y + r.height / 2}" rx="${r.width / 2}" ry="${r.height / 2}" fill="${this.#fill}"/>`); }
   addPath(p) { this.#path = p; }
@@ -198,7 +200,7 @@ export function toHTML(widget, family, now) {
       const color = n.textColor ? n.textColor.css() : '#fff';
       return `<span class="t" dir="auto" data-scale="${n.minimumScaleFactor ?? 1}" style="${fontCss(n.font)}color:${color};opacity:${n.textOpacity ?? 1};text-align:${n.align};">${esc(t)}</span>`;
     }
-    if (n.kind === 'image') return `<span style="display:inline-block;width:${n.imageSize?.width || 12}px;height:${n.imageSize?.height || 12}px">${n.image.svg}</span>`;
+    if (n.kind === 'image') return `<span style="display:inline-block;flex:none;width:${n.imageSize?.width || 12}px;height:${n.imageSize?.height || 12}px">${n.image.svg.replace('<svg ', '<svg width="100%" height="100%" ')}</span>`;
     const st = n;
     const dir = st.dir === 'v' ? 'column' : 'row';
     const al = st.dir === 'v' ? 'flex-start' : { top: 'flex-start', center: 'center', bottom: 'flex-end' }[st.align];
