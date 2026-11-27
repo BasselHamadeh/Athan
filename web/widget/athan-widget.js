@@ -1,4 +1,4 @@
-// Athan-Widget für Scriptable (iPhone) – Version 1.3.4
+// Athan-Widget für Scriptable (iPhone) – Version 1.3.5
 // https://github.com/BasselHamadeh/Athan · keine Werbung, kein Tracking, rechnet ohne Internet.
 // Den Code bitte nicht von Hand ändern: In der Athan-App unter Einstellungen → iPhone → „Widget-Code kopieren“
 // bekommst du ihn mit deinem Ort und deinen Einstellungen.
@@ -786,20 +786,27 @@ function large(d) {
   return w;
 }
 
-// Sperrbildschirm (iOS färbt selbst ein – nur Text, keine Bilder)
+// Sperrbildschirm (iOS färbt selbst ein – nur Text). Groß das nächste Gebet, darunter klein das danach;
+// zur Gebetszeit lädt das Widget neu und rückt eins weiter.
 function lockRect(d) {
   const w = new ListWidget();
-  w.setPadding(0, 2, 0, 2);
-  if (!d.next) { text(w, 'Athan', Font.semiboldSystemFont(14), Color.white()); return w; }
-  const L = NAMES[d.next.prayer][0];
-  const a = hstack(w, 5);
-  text(a, d.ramadanNext && d.next.prayer === 'maghrib' ? 'Iftar' : L, Font.boldSystemFont(16), Color.white(), { scale: 0.7 });
-  text(a, fmt(d.next.at), Font.boldRoundedSystemFont(16), Color.white(), { scale: 0.7 });
-  const b = hstack(w, 3);
-  text(b, 'noch', Font.regularSystemFont(13), Color.white(), { opacity: 0.8 });
-  countdown(b, d.next.at, Font.mediumRoundedSystemFont(13), Color.white());
+  w.setPadding(0, 3, 0, 3);
+  if (!d.next) { text(w, 'Athan', Font.semiboldSystemFont(15), Color.white()); return w; }
+  const name = (e) => (d.ramadanNext && e === d.next && e.prayer === 'maghrib' ? 'Iftar' : NAMES[e.prayer][0]);
+  w.addSpacer();
+  const a = hstack(w, 6);
+  text(a, name(d.next), Font.boldSystemFont(22), Color.white(), { scale: 0.6 });
+  a.addSpacer();
+  text(a, fmt(d.next.at), Font.boldRoundedSystemFont(22), Color.white(), { scale: 0.6 });
   const n = d.after[0];
-  if (n) text(w, `${NAMES[n.prayer][0]} ${fmt(n.at)}${d.after[1] ? ` · ${NAMES[d.after[1].prayer][0]} ${fmt(d.after[1].at)}` : ''}`, Font.regularSystemFont(12), Color.white(), { opacity: 0.7 });
+  if (n) {
+    w.addSpacer(2);
+    const b = hstack(w, 6);
+    text(b, name(n), Font.mediumSystemFont(14), Color.white(), { opacity: 0.62 });
+    b.addSpacer();
+    text(b, fmt(n.at), Font.mediumRoundedSystemFont(14), Color.white(), { opacity: 0.62 });
+  }
+  w.addSpacer();
   return w;
 }
 function lockCircle(d) {
