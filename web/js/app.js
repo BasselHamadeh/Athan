@@ -7,7 +7,7 @@ import { specialDay, hijriParts, moonPhaseName } from './hijri.js';
 import { initSky } from './sky.js';
 import { skyAt } from './palette.js';
 
-const VERSION = '1.3.2';
+const VERSION = '1.3.3';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

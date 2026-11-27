@@ -214,6 +214,12 @@ func buildDatabase(ver string, exeSize int) *database {
 		[]any{"StartMenuShortcut", "ProgramMenuFolder", "ATHAN|Athan", "Shortcuts", "[#AthanExe]", nil, desc, nil, nil, nil, nil, "INSTALLDIR"},
 		[]any{"DesktopShortcut", "DesktopFolder", "ATHAN|Athan", "Shortcuts", "[#AthanExe]", nil, desc, nil, nil, nil, nil, "INSTALLDIR"},
 	)
+	// Ordner für die Verknüpfungen anlegen, falls es sie nicht gibt (z. B. Desktop in OneDrive) – sonst Warnung 1909.
+	// Kein RemoveFolders: der Desktop des Nutzers darf nie gelöscht werden.
+	d.add("CreateFolder", []column{{"Directory_", s(72).K()}, {"Component_", s(72).K()}},
+		[]any{"ProgramMenuFolder", "Shortcuts"},
+		[]any{"DesktopFolder", "Shortcuts"},
+	)
 	d.add("Registry", []column{{"Registry", s(72).K()}, {"Root", i2()}, {"Key", l(255)}, {"Name", l(255).N()}, {"Value", l(0).N()}, {"Component_", s(72)}},
 		[]any{"RegShortcuts", 1, `Software\Athan`, "Shortcuts", "1", "Shortcuts"},
 		[]any{"RegAutostart", 1, `Software\Athan`, "Autostart", "1", "Autostart"},
@@ -241,6 +247,7 @@ func buildDatabase(ver string, exeSize int) *database {
 		[]any{"RemoveRegistryValues", nil, 2600},
 		[]any{"RemoveShortcuts", nil, 3200},
 		[]any{"RemoveFiles", nil, 3500},
+		[]any{"CreateFolders", nil, 3700},
 		[]any{"InstallFiles", nil, 4000},
 		[]any{"CreateShortcuts", nil, 4500},
 		[]any{"WriteRegistryValues", nil, 5000},
