@@ -51,6 +51,7 @@ export function cleanSettings(s) {
   return {
     location: { name: String(l.name || '').replace(/[\u0000-\u001f<>]/g, '').slice(0, 80), lat, lon, tz },
     calc, modes, pre: [0, 5, 10, 15, 20, 30].includes(+s.pre) ? +s.pre : 0, clock: s.clock === '12' ? '12' : '24',
+    hijriAdj: [-1, 0, 1].includes(+s.hijriAdj) ? +s.hijriAdj : 0,
   };
 }
 
@@ -73,6 +74,16 @@ function isFriday(epoch, tz) {
   return f.format(epoch) === 'Fri';
 }
 
+const hijriCache = new Map();
+function hijriMonth(epoch, tz, adj) {
+  let f = hijriCache.get(tz);
+  if (f === undefined) {
+    try { f = new Intl.DateTimeFormat('en-u-ca-islamic-umalqura-nu-latn', { timeZone: tz, month: 'numeric' }); } catch { f = null; }
+    hijriCache.set(tz, f);
+  }
+  return f ? +f.format(epoch + (adj || 0) * 86400000) : 0;
+}
+
 /** Alle Benachrichtigungen, deren Zeitpunkt in (from, to] liegt. */
 export function messagesFor(settings, from, to) {
   const { location, calc, modes, pre, clock } = settings;
@@ -86,10 +97,13 @@ export function messagesFor(settings, from, to) {
     const [name, ar] = INFO[kind];
     const when = fmtTime(e.at, location.tz, clock);
     if (e.at > from && e.at <= to) {
+      const ramadan = (e.prayer === 'maghrib' || e.prayer === 'fajr') && hijriMonth(e.at, location.tz, settings.hijriAdj) === 9;
       out.push({
         key: `${e.prayer}:${e.at}`, ttl: 900,
         data: {
-          title: e.prayer === 'sunrise' ? `Sonnenaufgang (${ar})` : `Zeit für ${name} (${ar})`,
+          title: e.prayer === 'sunrise' ? `Sonnenaufgang (${ar})`
+            : ramadan && e.prayer === 'maghrib' ? `Iftar: Zeit für Maghrib (${ar})`
+            : ramadan && e.prayer === 'fajr' ? `Suhoor endet: Zeit für Fajr (${ar})` : `Zeit für ${name} (${ar})`,
           body: `${when} · ${location.name}`, tag: `prayer-${e.prayer}-${e.at}`, prayer: e.prayer, at: e.at,
           athan: mode === 'athan' && e.prayer !== 'sunrise', url: './#heute',
         },

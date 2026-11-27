@@ -15,6 +15,7 @@ export const DEFAULTS = {
   pre: 0,                    // Minuten vorher erinnern
   clock: '24',
   openOnAthan: false,        // nur Windows
+  hijriAdj: 0,               // Hidschri-Datum: -1, 0, +1 Tag
 };
 
 function merge(base, over) {
@@ -37,6 +38,7 @@ export function sanitize(s) {
   }
   o.volume = Math.min(1, Math.max(0, +o.volume || 0));
   o.pre = [0, 5, 10, 15, 20, 30].includes(+o.pre) ? +o.pre : 0;
+  o.hijriAdj = [-1, 0, 1].includes(+o.hijriAdj) ? +o.hijriAdj : 0;
   for (const k of Object.keys(DEFAULTS.modes)) if (!['athan', 'notify', 'off'].includes(o.modes[k])) o.modes[k] = DEFAULTS.modes[k];
   for (const k of Object.keys(DEFAULT_CALC.adjust)) o.calc.adjust[k] = Math.max(-60, Math.min(60, Math.round(+o.calc.adjust[k] || 0)));
   return o;

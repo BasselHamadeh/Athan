@@ -65,6 +65,15 @@ Invoke-RestMethod "$base/api/stop" -Method Post -Headers $h | Out-Null
 Start-Sleep 2
 Check 'Stopp funktioniert' ($null -eq (Invoke-RestMethod "$base/api/status" -Headers $h).playing)
 
+# Sichtprüfung: Oberfläche mit Berlin als Ort im Edge-Fenster fotografieren
+$berlin = @{
+  location = @{ name = 'Berlin'; region = 'Berlin'; country = 'Deutschland'; cc = 'DE'; lat = 52.52; lon = 13.405; tz = 'Europe/Berlin' }
+  calc = @{ method = 'MWL'; asr = 'standard'; highLat = 'angle' }; voice = 'makkah_mulla'; fajrVoice = 'auto'; volume = 0.8; pre = 0; clock = '24'
+  modes = @{ fajr = 'athan'; sunrise = 'off'; dhuhr = 'athan'; asr = 'athan'; maghrib = 'athan'; isha = 'athan' }
+} | ConvertTo-Json -Depth 5
+Invoke-RestMethod "$base/api/settings" -Method Put -Headers $h -ContentType 'application/json' -Body $berlin | Out-Null
+try { node tests/windows-shots.mjs $base } catch { Write-Host "Screenshots nicht möglich: $_" }
+
 Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
 Start-Sleep 1
 $p = Start-Process msiexec -ArgumentList "/x `"$msi`" /qn" -Wait -PassThru

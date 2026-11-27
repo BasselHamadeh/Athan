@@ -81,7 +81,10 @@ jobs:
       - name: Online-Prüfung
         if: steps.check.outputs.skip != '1' && env.URL != ''
         run: |
-          sleep 5
-          curl -fsS "$URL/api/config" | grep -q vapidPublicKey && echo "API ✓"
+          # Eine neue workers.dev-Adresse braucht manchmal ein paar Minuten
+          for i in $(seq 1 30); do
+            if curl -fsS "$URL/api/config" | grep -q vapidPublicKey; then echo "API ✓"; break; fi
+            echo "warte auf $URL …"; sleep 10
+          done
           curl -fsS -o /dev/null -w "Startseite %{http_code}\n" "$URL/"
           curl -fsS -r 0-15 -o /dev/null -w "Audio %{http_code} %{content_type}\n" "$URL/audio/makkah_mulla"

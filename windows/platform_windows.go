@@ -51,6 +51,8 @@ var (
 	pShowWindow             = user32.NewProc("ShowWindow")
 	pIsIconic               = user32.NewProc("IsIconic")
 	pSetProcessDpiAwareCtx  = user32.NewProc("SetProcessDpiAwarenessContext")
+	pSystemParametersInfoW  = user32.NewProc("SystemParametersInfoW")
+	pGetDpiForSystem        = user32.NewProc("GetDpiForSystem")
 	pShellNotifyIconW       = shell32.NewProc("Shell_NotifyIconW")
 	pShellExecuteW          = shell32.NewProc("ShellExecuteW")
 	pGetModuleHandleW       = kernel32.NewProc("GetModuleHandleW")
@@ -366,8 +368,10 @@ func (p *winPlatform) OpenWindow(url string) {
 		}
 	}
 	if browser != "" {
+		w, h, x, y := windowBounds()
 		cmd := exec.Command(browser, "--app="+url, "--user-data-dir="+filepath.Join(p.app.cacheDir, "window"),
-			"--no-first-run", "--no-default-browser-check", "--disable-sync", "--window-size=1180,820",
+			"--no-first-run", "--no-default-browser-check", "--disable-sync",
+			fmt.Sprintf("--window-size=%d,%d", w, h), fmt.Sprintf("--window-position=%d,%d", x, y),
 			"--autoplay-policy=no-user-gesture-required")
 		if err := cmd.Start(); err == nil {
 			go cmd.Wait()
@@ -375,6 +379,27 @@ func (p *winPlatform) OpenWindow(url string) {
 		}
 	}
 	pShellExecuteW.Call(0, uintptr(unsafe.Pointer(u16("open"))), uintptr(unsafe.Pointer(u16(url))), 0, 0, swShowNormal)
+}
+
+type rect struct{ Left, Top, Right, Bottom int32 }
+
+// windowBounds: Fenster mittig im Arbeitsbereich, höchstens 1180×820 (in geräteunabhängigen Pixeln).
+func windowBounds() (w, h, x, y int) {
+	var wa rect
+	if r, _, _ := pSystemParametersInfoW.Call(0x30, 0, uintptr(unsafe.Pointer(&wa)), 0); r == 0 || wa.Right <= wa.Left {
+		return 1180, 820, 80, 60
+	}
+	scale := 1.0
+	if pGetDpiForSystem.Find() == nil {
+		if d, _, _ := pGetDpiForSystem.Call(); d >= 96 {
+			scale = float64(d) / 96
+		}
+	}
+	aw, ah := float64(wa.Right-wa.Left)/scale, float64(wa.Bottom-wa.Top)/scale
+	w, h = int(min(1180, aw*0.92)), int(min(820, ah*0.92))
+	x = int(float64(wa.Left)/scale + (aw-float64(w))/2)
+	y = int(float64(wa.Top)/scale + (ah-float64(h))/2)
+	return
 }
 
 var foundWnd uintptr

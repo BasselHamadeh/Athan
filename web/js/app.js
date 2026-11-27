@@ -2,8 +2,11 @@ import { computeDay, upcomingEvents, zonedParts, addDays, qiblaBearing, distance
 import { loadLocal, saveLocal, sanitize, DEFAULTS } from './store.js';
 import { Player, saveCustom, loadCustom } from './audio.js';
 import * as plat from './platform.js';
+import { moonPosition, moonIllumination, moonLitPath, moonRotation } from './astro.js';
+import { specialDay, hijriParts, moonPhaseName } from './hijri.js';
+import { initSky } from './sky.js';
 
-const VERSION = '1.1.1';
+const VERSION = '1.2.0';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -40,8 +43,9 @@ function fmtTime(epoch) {
   if (!f) { f = new Intl.DateTimeFormat('de-DE', { timeZone: tz(), hour: '2-digit', minute: '2-digit', hourCycle: S.clock === '12' ? 'h12' : 'h23' }); fmtCache.set(key, f); }
   return f.format(epoch);
 }
+const hijriAdj = () => (Number.isInteger(S.hijriAdj) ? S.hijriAdj : 0);
 function hijri(epoch, opts, locale = 'de') {
-  try { return new Intl.DateTimeFormat(`${locale}-u-ca-islamic-umalqura-nu-latn`, { timeZone: tz(), ...opts }).format(epoch); } catch { return ''; }
+  try { return new Intl.DateTimeFormat(`${locale}-u-ca-islamic-umalqura-nu-latn`, { timeZone: tz(), ...opts }).format(epoch + hijriAdj() * 86400000); } catch { return ''; }
 }
 const isFriday = (date) => new Date(Date.UTC(date.y, date.m - 1, date.d)).getUTCDay() === 5;
 const label = (prayer, date) => (prayer === 'dhuhr' && date && isFriday(date) ? INFO.jumua : INFO[prayer]);
@@ -78,11 +82,11 @@ function commit(change = {}) {
 
 // ---------------- Himmel ----------------
 // Zwei Farbverläufe nach Sonnenhöhe: Morgen (Fajr → Shuruq → Vormittag) und Abend (Asr → Maghrib → Isha).
-const NIGHT = { top: '#040C20', mid: '#081833', low: '#0F2650', glow: [40, 60, 140, 0], stars: 1 };
+const NIGHT = { top: '#01040C', mid: '#030916', low: '#07112A', glow: [40, 60, 140, 0], stars: 1 };
 const NOON = { top: '#0C467E', mid: '#18659C', low: '#24709C', glow: [255, 245, 210, 0.10], stars: 0 };
 const MORNING = [
   { a: -90, ...NIGHT },
-  { a: -18, top: '#060F28', mid: '#0C1D42', low: '#16305F', glow: [90, 80, 160, 0.10], stars: 0.9 },
+  { a: -18, top: '#030A1E', mid: '#081633', low: '#10244C', glow: [90, 80, 160, 0.08], stars: 0.95 },
   { a: -12, top: '#0B1440', mid: '#1E225A', low: '#3A2F68', glow: [180, 120, 190, 0.22], stars: 0.6 },
   { a: -5, top: '#141C52', mid: '#3A2F6A', low: '#6A4272', glow: [236, 150, 150, 0.32], stars: 0.2 },
   { a: 2, top: '#1B2E66', mid: '#4A4A80', low: '#7A5068', glow: [250, 175, 120, 0.40], stars: 0 },
@@ -92,7 +96,7 @@ const MORNING = [
 ];
 const EVENING = [
   { a: -90, ...NIGHT },
-  { a: -18, top: '#060F28', mid: '#0C1D42', low: '#16305F', glow: [60, 60, 140, 0.06], stars: 0.9 },
+  { a: -18, top: '#030A1E', mid: '#081633', low: '#10244C', glow: [60, 60, 140, 0.05], stars: 0.95 },
   { a: -12, top: '#0D1336', mid: '#1E1D4E', low: '#2E2454', glow: [120, 70, 140, 0.14], stars: 0.6 },
   { a: -6, top: '#171844', mid: '#3E2456', low: '#5A2A4A', glow: [200, 80, 90, 0.28], stars: 0.2 },
   { a: 0, top: '#231F52', mid: '#6A3456', low: '#9A3E32', glow: [245, 110, 70, 0.42], stars: 0 },
@@ -186,7 +190,8 @@ function renderArc(now, ctx) {
   const o = arcPos(now, ctx);
   orb.innerHTML = o.day
     ? `<circle cx="${o.x}" cy="${o.y}" r="22" fill="url(#sunGlow)"/><circle cx="${o.x}" cy="${o.y}" r="6.5" fill="#FFE3A0"/>`
-    : `<circle cx="${o.x}" cy="${o.y}" r="7" class="moon"/><circle cx="${o.x + 3.2}" cy="${o.y - 2}" r="6" fill="var(--sky-mid)"/>`;
+    : `<circle cx="${o.x.toFixed(1)}" cy="${o.y.toFixed(1)}" r="4" class="sun-below"><title>Sonne unter dem Horizont</title></circle>`;
+  renderMoon(now, o.day);
   const done = $('#dayDone');
   if (isFinite(ctx.t.sunrise) && now > ctx.t.sunrise) {
     const p = now >= ctx.t.sunset ? { x: 320, y: 120 } : o;
@@ -194,6 +199,26 @@ function renderArc(now, ctx) {
   } else done.setAttribute('d', '');
   $('#hzRise').textContent = fmtTime(ctx.t.sunrise);
   $('#hzSet').textContent = fmtTime(ctx.t.sunset);
+}
+
+// Mond am Himmel: Position nach Azimut/Höhe am Ort, Phase und Lage der hellen Seite echt berechnet
+function renderMoon(now, isDay) {
+  const g = $('#moonG');
+  const { lat, lon } = S.location;
+  const pos = moonPosition(now, lat, lon);
+  if (pos.altitude < -2) { g.innerHTML = ''; return; }
+  const ill = moonIllumination(now);
+  const az = (pos.azimuth * Math.PI) / 180, alt = (Math.max(0, pos.altitude) * Math.PI) / 180;
+  const x = 180 + 140 * Math.sin(az), y = 118 - 96 * Math.sin(alt);
+  const r = 9, rot = moonRotation(now, lat, lon);
+  const pct = Math.round(ill.fraction * 100);
+  g.style.opacity = isDay ? '0.55' : '1';
+  g.innerHTML = `<title>Mond: ${moonPhaseName(ill.phase)}, ${pct} % beleuchtet</title>
+    <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(16 + 14 * ill.fraction).toFixed(1)}" fill="url(#moonHalo)" opacity="${(0.35 + 0.65 * ill.fraction).toFixed(2)}"/>
+    <g transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${rot.toFixed(1)})">
+      ${isDay ? '' : `<circle r="${r}" class="moon-dark"/>`}
+      <path d="${moonLitPath(ill.fraction, r)}" class="moon-lit"/>
+    </g>`;
 }
 
 const MODE_ICON = { athan: 'i-athan', notify: 'i-notify', off: 'i-off' };
@@ -211,8 +236,9 @@ function renderList(now, ctx) {
       <button class="t-mode" type="button" data-prayer="${k}" data-mode="${mode}" aria-label="${esc(L.name)}: ${MODE_TEXT[mode]}. Tippen zum Ändern" title="${MODE_TEXT[mode]}"><svg><use href="#${MODE_ICON[mode]}"/></svg></button>
     </li>`;
   }).join('');
-  $('#extras').innerHTML = [['Imsak', t.imsak], ['Mitternacht', t.midnight], ['Letztes Drittel', t.lastThird]]
-    .map(([n, v]) => `<div><dt>${n}</dt><dd>${fmtTime(v)}</dd></div>`).join('');
+  const ill = moonIllumination(now);
+  $('#extras').innerHTML = [['Imsak', fmtTime(t.imsak)], ['Mitternacht', fmtTime(t.midnight)], ['Letztes Drittel', fmtTime(t.lastThird)], ['Mond', `${Math.round(ill.fraction * 100)} %`, moonPhaseName(ill.phase)]]
+    .map(([n, v, title]) => `<div${title ? ` title="${esc(title)}"` : ''}><dt>${esc(n)}</dt><dd>${esc(v)}</dd></div>`).join('');
   const m = METHODS[S.calc.method] || METHODS.MWL;
   $('#methodNote').textContent = `${m.name}, Asr ${S.calc.asr === 'hanafi' ? 'Hanafi' : 'Standard'}. Zeiten in ${tz().replace(/_/g, ' ')}.`;
 }
@@ -236,16 +262,19 @@ function renderToday(now) {
     $('#countdown').textContent = '';
     $('#nextAt').textContent = 'Wähle deinen Ort, dann berechnet Athan die Gebetszeiten.';
     $('#times').innerHTML = ''; $('#extras').innerHTML = ''; $('#methodNote').textContent = '';
-    $('#arcMarks').innerHTML = ''; $('#orb').innerHTML = '';
+    $('#arcMarks').innerHTML = ''; $('#orb').innerHTML = ''; $('#moonG').innerHTML = '';
+    $('#dayChip').hidden = true; $('#ramadanBar').hidden = true; $('#lanterns').hidden = true;
     renderPrompts();
     return null;
   }
   const ctx = dayContext(now);
   const minute = Math.floor(now / 60000);
-  if (minute !== lastMinute) { lastMinute = minute; renderArc(now, ctx); renderList(now, ctx); paintSky(now, ctx); renderPrompts(); }
+  if (minute !== lastMinute) { lastMinute = minute; renderArc(now, ctx); renderList(now, ctx); paintSky(now, ctx); renderPrompts(); renderSeason(now, ctx); }
   if (ctx.next) {
     const L = label(ctx.next.prayer, ctx.next.date);
-    $('#nextLabel').textContent = ctx.next.prayer === 'sunrise' ? 'Die Fajr-Zeit endet mit' : 'Nächstes Gebet';
+    const ramadanNext = hijriParts(ctx.next.at, tz(), hijriAdj()).m === 9;
+    $('#nextLabel').textContent = ctx.next.prayer === 'sunrise' ? 'Die Fajr-Zeit endet mit'
+      : ramadanNext && ctx.next.prayer === 'maghrib' ? 'Iftar mit' : ramadanNext && ctx.next.prayer === 'fajr' ? 'Suhoor endet mit' : 'Nächstes Gebet';
     $('#nextName').textContent = L.name;
     $('#nextAr').textContent = L.ar;
     const left = ctx.next.at - now;
@@ -255,6 +284,23 @@ function renderToday(now) {
     document.title = `${L.name} in ${hms(left).slice(0, -3)} – Athan`;
   }
   return ctx;
+}
+
+// Ramadan, Eid und besondere Tage
+function renderSeason(now, ctx) {
+  const sp = specialDay(now, tz(), hijriAdj());
+  const chip = $('#dayChip');
+  chip.hidden = !sp;
+  chip.classList.toggle('eid', sp?.kind === 'eid');
+  if (sp) { $('#dayChipText').textContent = sp.de; $('#dayChipAr').textContent = sp.ar; }
+  const ramadan = sp?.kind === 'ramadan';
+  $('#ramadanBar').hidden = !ramadan;
+  $('#lanterns').hidden = !(ramadan || sp?.kind === 'eid');
+  if (ramadan) {
+    const suhoor = now < ctx.t.fajr ? ctx.t.fajr : ctx.tomo.fajr;
+    $('#suhoorT').textContent = fmtTime(suhoor);
+    $('#iftarT').textContent = fmtTime(ctx.t.maghrib);
+  }
 }
 
 // ---------------- Athan auslösen (Web-Modus) ----------------
@@ -282,7 +328,10 @@ function checkSchedule(now) {
 async function fire(e) {
   const L = label(e.prayer, e.date);
   const mode = e.test ? 'athan' : S.modes[e.prayer];
-  const title = e.test ? 'Athan – Test' : e.prayer === 'sunrise' ? `Sonnenaufgang (${L.ar})` : `Zeit für ${L.name} (${L.ar})`;
+  const inRamadan = hijriParts(e.at, tz(), hijriAdj()).m === 9;
+  const title = e.test ? 'Athan – Test' : e.prayer === 'sunrise' ? `Sonnenaufgang (${L.ar})`
+    : inRamadan && e.prayer === 'maghrib' ? `Iftar: Zeit für Maghrib (${L.ar})`
+    : inRamadan && e.prayer === 'fajr' ? `Suhoor endet: Zeit für Fajr (${L.ar})` : `Zeit für ${L.name} (${L.ar})`;
   plat.showNotification(title, {
     body: `${fmtTime(e.at)} · ${S.location.name}`, tag: e.test ? 'athan-test' : `prayer-${e.prayer}-${e.at}`, requireInteraction: mode === 'athan' && !e.test,
   });
@@ -448,7 +497,7 @@ function renderMonth() {
   $('#monthPlace').textContent = `${S.location.name}, ${(METHODS[S.calc.method] || METHODS.MWL).name}`;
   const days = new Date(Date.UTC(y, m, 0)).getUTCDate();
   const wd = new Intl.DateTimeFormat('de-DE', { weekday: 'short', timeZone: 'UTC' });
-  const hd = (d) => { try { return new Intl.DateTimeFormat('de-u-ca-islamic-umalqura-nu-latn', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(Date.UTC(y, m - 1, d, 12)); } catch { return ''; } };
+  const hd = (d) => { try { return new Intl.DateTimeFormat('de-u-ca-islamic-umalqura-nu-latn', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(Date.UTC(y, m - 1, d, 12) + hijriAdj() * 86400000); } catch { return ''; } };
   let rows = '';
   for (let d = 1; d <= days; d++) {
     const t = computeDay({ y, m, d }, S.location, S.calc);
@@ -498,6 +547,7 @@ function renderSettings() {
   $('#highLat').value = S.calc.highLat;
   $('#adjustGrid').innerHTML = PRAYERS.map((k) => `<label>${INFO[k].name}<input type="number" min="-60" max="60" step="1" data-adj="${k}" value="${S.calc.adjust[k]}"></label>`).join('');
   $$('input[name="clock"]').forEach((r) => (r.checked = r.value === S.clock));
+  $('#hijriAdj').value = String(hijriAdj());
 
   $$('.desktop-only').forEach((e) => (e.hidden = !plat.isDesktop));
   $('#autostart').checked = !!desktopState.autostart;
@@ -683,6 +733,7 @@ function bind() {
   $('#highLat').onchange = (e) => commit({ calc: { ...S.calc, highLat: e.target.value } });
   $('#adjustGrid').addEventListener('change', (e) => { const k = e.target.dataset.adj; if (k) commit({ calc: { ...S.calc, adjust: { ...S.calc.adjust, [k]: +e.target.value } } }); });
   $$('input[name="clock"]').forEach((r) => (r.onchange = () => commit({ clock: r.value })));
+  $('#hijriAdj').onchange = (e) => commit({ hijriAdj: +e.target.value });
 
   $('#notifyEnable').onclick = enableAll;
   $('#notifyTest').onclick = async () => {
@@ -762,7 +813,18 @@ async function init() {
     const info = await plat.detectServer();
     return [...(info?.audio ? [`audio/${encodeURIComponent(id)}`] : []), ...v.src];
   });
+  initSky();
   try { voices = (await (await fetch('muezzins.json')).json()).voices; } catch { voices = []; }
+  if (!plat.isDesktop) {
+    try {
+      const cfg = await (await fetch('config.json', { cache: 'no-store' })).json();
+      const target = cfg.appUrl && new URL(cfg.appUrl);
+      if (target && target.origin !== location.origin && target.protocol === 'https:') {
+        $('#moveLink').href = target.href;
+        $('#movePrompt').hidden = false;
+      }
+    } catch { /* keine Konfiguration */ }
+  }
   if (plat.isDesktop) {
     try {
       const st = await plat.api('/api/state');

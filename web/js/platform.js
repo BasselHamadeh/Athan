@@ -84,10 +84,10 @@ export async function syncPush(settings) {
     if (cur && (cur.length !== key.length || cur.some((v, i) => v !== key[i]))) { await sub.unsubscribe(); sub = null; }
   }
   if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
-  const { location, calc, modes, pre, clock } = settings;
+  const { location, calc, modes, pre, clock, hijriAdj } = settings;
   const r = await fetch('api/subscribe', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ subscription: sub.toJSON(), settings: { location, calc, modes, pre, clock } }),
+    body: JSON.stringify({ subscription: sub.toJSON(), settings: { location, calc, modes, pre, clock, hijriAdj } }),
   });
   if (!r.ok) throw new Error('Server lehnte das Abo ab (' + r.status + ')');
   return { ok: true };

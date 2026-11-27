@@ -38,6 +38,10 @@ jobs:
           dotnet tool install --global wix --version 5.0.2
           wix build installer/athan.wxs -arch x64 -d Version=$VERSION -o "dist/Athan-Setup-$VERSION-wix.msi"
 
+      - name: Werkzeug für Screenshots
+        shell: bash
+        run: npm install --no-save --no-package-lock playwright-core@1.49.1
+
       - name: Virtuelle Soundkarte (für den Wiedergabetest)
         uses: LABSN/sound-ci-helpers@v1
 
