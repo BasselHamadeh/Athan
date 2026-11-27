@@ -1,0 +1,6 @@
+dist/
+data/
+windows/web/
+node_modules/
+*.syso.tmp
+windows/testdata/

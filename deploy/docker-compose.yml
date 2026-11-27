@@ -1,0 +1,21 @@
+# Start:  ATHAN_DOMAIN=athan.deine-domain.de ATHAN_EMAIL=du@example.org docker compose up -d
+# Caddy holt das HTTPS-Zertifikat automatisch (Let's Encrypt). Ports 80/443 müssen erreichbar sein.
+services:
+  athan:
+    build: { context: .., dockerfile: deploy/Dockerfile }
+    restart: unless-stopped
+    environment:
+      VAPID_SUBJECT: mailto:${ATHAN_EMAIL:?ATHAN_EMAIL setzen}
+    volumes: [athan-data:/data]
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      ATHAN_DOMAIN: ${ATHAN_DOMAIN:?ATHAN_DOMAIN setzen}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+volumes:
+  athan-data:
+  caddy-data:

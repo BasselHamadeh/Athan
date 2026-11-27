@@ -1,0 +1,19 @@
+# systemd-Dienst (ohne Docker), z. B. auf einem Raspberry Pi oder VPS:
+#   sudo cp deploy/athan.service /etc/systemd/system/ && sudo systemctl enable --now athan
+[Unit]
+Description=Athan Push-Server
+After=network-online.target
+
+[Service]
+WorkingDirectory=/opt/athan
+ExecStart=/usr/bin/node server/server.mjs
+Environment=PORT=8080 DATA_DIR=/var/lib/athan VAPID_SUBJECT=mailto:du@example.org
+DynamicUser=yes
+StateDirectory=athan
+Restart=always
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target

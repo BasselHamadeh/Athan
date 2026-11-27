@@ -1,0 +1,60 @@
+name: Athan bauen
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Version bestimmen
+        shell: bash
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          [[ "$V" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || V="1.0.0"
+          echo "VERSION=$V" >> "$GITHUB_ENV"
+
+      - name: EXE + MSI (mkmsi)
+        shell: bash
+        run: ./build.sh
+
+      - name: MSI zusätzlich mit WiX
+        shell: bash
+        run: |
+          dotnet tool install --global wix --version 5.0.2
+          wix build installer/athan.wxs -arch x64 -d Version=$VERSION -o "dist/Athan-Setup-$VERSION-wix.msi"
+
+      - name: MSI testweise installieren und wieder entfernen
+        shell: pwsh
+        run: |
+          $msi = Resolve-Path "dist/Athan-Setup-$env:VERSION.msi"
+          $p = Start-Process msiexec -ArgumentList "/i `"$msi`" /qn /l*v install.log" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Get-Content install.log -Tail 60; throw "Installation fehlgeschlagen: $($p.ExitCode)" }
+          if (-not (Test-Path "$env:LOCALAPPDATA\Programs\Athan\Athan.exe")) { throw "Athan.exe fehlt nach der Installation" }
+          $p = Start-Process msiexec -ArgumentList "/x `"$msi`" /qn" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Deinstallation fehlgeschlagen: $($p.ExitCode)" }
+          Write-Host "MSI installiert und deinstalliert ✓"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: athan-windows-${{ env.VERSION }}
+          path: dist/*
+
+      - name: Release anlegen
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*

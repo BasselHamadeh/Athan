@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: data: https:; connect-src 'self' https://geocoding-api.open-meteo.com https://nominatim.openstreetmap.org; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <title>Athan</title>
+  <meta name="description" content="Gebetszeiten, Athan und Qibla – ohne Werbung, ohne Tracking.">
+  <meta name="theme-color" content="#0A1A36">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Athan">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="css/app.css">
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <svg class="sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-6.5-6.1-6.5-11.2A6.5 6.5 0 0 1 12 3.3a6.5 6.5 0 0 1 6.5 6.5C18.5 14.9 12 21 12 21z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="9.8" r="2.3" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+    <symbol id="i-today" viewBox="0 0 24 24"><path d="M3 16.5h18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M5.5 16.5a6.5 6.5 0 0 1 13 0" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 4.5v2.2M4.6 8.6l1.6 1.5M19.4 8.6l-1.6 1.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M8 20h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-qibla" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 5.2l2.4 6.8L12 18.8 9.6 12z" fill="currentColor" opacity=".9"/></symbol>
+    <symbol id="i-month" viewBox="0 0 24 24"><rect x="3.8" y="5.2" width="16.4" height="15" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3.8 9.6h16.4M8.4 3.4v3.4M15.6 3.4v3.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M15.8 12.4a2.9 2.9 0 1 0 0 4.8 3.4 3.4 0 0 1 0-4.8z" fill="currentColor"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="15" cy="7" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="9" cy="17" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+    <symbol id="i-athan" viewBox="0 0 24 24"><path d="M4 10v4h3.5l5 4V6l-5 4z" fill="currentColor"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-notify" viewBox="0 0 24 24"><path d="M6.5 16.5V11a5.5 5.5 0 0 1 11 0v5.5l1.5 1.5H5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M10 20.2a2.2 2.2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-off" viewBox="0 0 24 24"><path d="M6.5 16.5V11a5.5 5.5 0 0 1 8.7-4.5M17.5 11v5.5l1.5 1.5H8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M4 20L20 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="1.6" fill="currentColor"/></symbol>
+    <symbol id="i-locate" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.5" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-chev-l" viewBox="0 0 24 24"><path d="M14.5 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-chev-r" viewBox="0 0 24 24"><path d="M9.5 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 3.5v11M8 7.5l4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 10.5H5.5v10h13v-10H17" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+    <symbol id="i-kaaba" viewBox="0 0 24 24"><path d="M4 8l8-3.5L20 8v9.5L12 21l-8-3.5z" fill="currentColor"/><path d="M4 10.2l8 3.4 8-3.4" fill="none" stroke="#D8B26E" stroke-width="1.4"/></symbol>
+  </svg>
+
+  <div class="sky" id="sky" aria-hidden="true"></div>
+
+  <div class="app" id="app">
+    <nav class="nav" aria-label="Bereiche">
+      <a class="nav-brand" href="#heute" aria-label="Athan">
+        <img src="icons/icon.svg" alt="" width="28" height="28">
+        <span>Athan</span>
+      </a>
+      <a href="#heute" data-tab="heute"><svg><use href="#i-today"/></svg><span>Heute</span></a>
+      <a href="#qibla" data-tab="qibla"><svg><use href="#i-qibla"/></svg><span>Qibla</span></a>
+      <a href="#monat" data-tab="monat"><svg><use href="#i-month"/></svg><span>Monat</span></a>
+      <a href="#einstellungen" data-tab="einstellungen"><svg><use href="#i-settings"/></svg><span>Einstellungen</span></a>
+    </nav>
+
+    <main class="views">
+      <!-- HEUTE -->
+      <section class="view view-today" data-view="heute" aria-labelledby="today-title">
+        <header class="topbar">
+          <button class="place" id="placeBtn" type="button" aria-label="Ort ändern">
+            <svg><use href="#i-pin"/></svg><span id="placeName">Ort wählen</span>
+          </button>
+          <div class="dates">
+            <span class="hijri-ar" id="hijriAr" lang="ar" dir="rtl"></span>
+            <span class="greg" id="gregDate"></span>
+          </div>
+        </header>
+
+        <div class="today-grid">
+          <div class="hero">
+            <svg class="arc" id="arc" viewBox="0 0 360 176" role="img" aria-label="Sonnenbahn des Tages mit Gebetszeiten">
+              <defs>
+                <radialGradient id="sunGlow"><stop offset="0" stop-color="#FFE7A8" stop-opacity=".95"/><stop offset=".35" stop-color="#E9C277" stop-opacity=".55"/><stop offset="1" stop-color="#E9C277" stop-opacity="0"/></radialGradient>
+                <linearGradient id="dayStroke" x1="0" x2="1"><stop offset="0" stop-color="#D8B26E" stop-opacity=".25"/><stop offset=".5" stop-color="#D8B26E" stop-opacity=".9"/><stop offset="1" stop-color="#D8B26E" stop-opacity=".25"/></linearGradient>
+              </defs>
+              <line class="horizon" x1="40" y1="120" x2="320" y2="120"/>
+              <path class="day-path" d="M40 120 A140 98 0 0 1 320 120"/>
+              <path class="day-done" id="dayDone" d=""/>
+              <path class="night-path" d="M320 120 A140 36 0 0 1 40 120"/>
+              <g id="arcMarks"></g>
+              <g id="orb"></g>
+              <text class="hz-label" id="hzRise" x="34" y="123.5" text-anchor="end"></text>
+              <text class="hz-label" id="hzSet" x="326" y="123.5" text-anchor="start"></text>
+            </svg>
+
+            <div class="next" aria-live="polite">
+              <p class="next-label" id="nextLabel">Nächstes Gebet</p>
+              <h1 class="next-name" id="today-title"><span id="nextName">—</span> <span class="next-ar" id="nextAr" lang="ar"></span></h1>
+              <p class="countdown" id="countdown" aria-label="Verbleibende Zeit">--:--:--</p>
+              <p class="next-at" id="nextAt"></p>
+            </div>
+
+            <div class="prompt" id="enablePrompt" hidden>
+              <p id="enableText">Damit der Athan pünktlich erklingt, braucht die App einmal deine Erlaubnis.</p>
+              <button class="btn btn-gold" id="enableBtn" type="button">Athan aktivieren</button>
+            </div>
+            <div class="prompt prompt-ios" id="iosPrompt" hidden>
+              <p>Für Benachrichtigungen auf dem iPhone: Tippe unten in Safari auf <svg class="inline-ic"><use href="#i-share"/></svg> <b>Teilen</b> und dann auf <b>Zum Home-Bildschirm</b>. Öffne Athan danach vom Home-Bildschirm.</p>
+              <button class="btn btn-ghost" id="iosDismiss" type="button">Verstanden</button>
+            </div>
+          </div>
+
+          <div class="times-panel">
+            <ol class="times" id="times" aria-label="Gebetszeiten heute"></ol>
+            <dl class="extras" id="extras"></dl>
+            <p class="method-note" id="methodNote"></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- QIBLA -->
+      <section class="view view-qibla" data-view="qibla" aria-labelledby="qibla-title" hidden>
+        <header class="view-head">
+          <h2 id="qibla-title">Qibla</h2>
+          <p class="sub" id="qiblaPlace"></p>
+        </header>
+        <div class="compass-wrap">
+          <div class="compass" id="compass" aria-hidden="true">
+            <svg viewBox="0 0 320 320" class="dial" id="dial">
+              <defs>
+                <pattern id="khatam" width="40" height="40" patternUnits="userSpaceOnUse">
+                  <path d="M20 4l4.7 11.3L36 20l-11.3 4.7L20 36l-4.7-11.3L4 20l11.3-4.7z M8.7 8.7l11.3 4.7 11.3-4.7-4.7 11.3 4.7 11.3-11.3-4.7-11.3 4.7 4.7-11.3z" fill="none" stroke="#D8B26E" stroke-opacity=".12" stroke-width=".8"/>
+                </pattern>
+              </defs>
+              <circle cx="160" cy="160" r="150" class="dial-face"/>
+              <circle cx="160" cy="160" r="150" fill="url(#khatam)"/>
+              <circle cx="160" cy="160" r="150" class="dial-rim"/>
+              <g id="ticks"></g>
+              <g class="cardinals">
+                <text x="160" y="44" text-anchor="middle">N</text>
+                <text x="282" y="166" text-anchor="middle">O</text>
+                <text x="160" y="288" text-anchor="middle">S</text>
+                <text x="38" y="166" text-anchor="middle">W</text>
+              </g>
+              <g id="qiblaPointer"></g>
+            </svg>
+            <div class="lubber" aria-hidden="true"></div>
+          </div>
+          <div class="qibla-read">
+            <p class="deg"><span id="qiblaDeg">—</span><span class="unit">°</span></p>
+            <p class="sub">von Norden im Uhrzeigersinn</p>
+            <p class="dist" id="qiblaDist"></p>
+            <p class="qibla-status" id="qiblaStatus" aria-live="polite"></p>
+            <button class="btn btn-gold" id="compassBtn" type="button">Live-Kompass starten</button>
+            <p class="hint" id="compassHint">Halte das Handy flach. Wenn die Richtung springt, bewege es einmal in Form einer Acht.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- MONAT -->
+      <section class="view view-month" data-view="monat" aria-labelledby="month-title" hidden>
+        <header class="view-head month-head">
+          <button class="icon-btn" id="prevMonth" type="button" aria-label="Vorheriger Monat"><svg><use href="#i-chev-l"/></svg></button>
+          <h2 id="month-title"></h2>
+          <button class="icon-btn" id="nextMonth" type="button" aria-label="Nächster Monat"><svg><use href="#i-chev-r"/></svg></button>
+          <button class="btn btn-ghost btn-sm print-btn" id="printBtn" type="button">Drucken</button>
+        </header>
+        <p class="sub month-place" id="monthPlace"></p>
+        <div class="table-wrap">
+          <table class="month" id="monthTable"></table>
+        </div>
+      </section>
+
+      <!-- EINSTELLUNGEN -->
+      <section class="view view-settings" data-view="einstellungen" aria-labelledby="settings-title" hidden>
+        <header class="view-head"><h2 id="settings-title">Einstellungen</h2></header>
+
+        <div class="settings">
+          <section class="group" id="locGroup" aria-labelledby="g-loc">
+            <h3 id="g-loc">Ort</h3>
+            <div class="current-loc" id="currentLoc"></div>
+            <div class="search">
+              <label class="visually-hidden" for="citySearch">Stadt suchen</label>
+              <input id="citySearch" type="search" autocomplete="off" placeholder="Stadt suchen, z. B. Berlin" enterkeyhint="search">
+              <button class="btn btn-ghost" id="gpsBtn" type="button"><svg><use href="#i-locate"/></svg>Standort verwenden</button>
+            </div>
+            <ul class="results" id="cityResults" role="listbox" aria-label="Suchergebnisse"></ul>
+            <details class="manual">
+              <summary>Koordinaten von Hand eingeben</summary>
+              <div class="manual-grid">
+                <label>Breitengrad<input id="manLat" type="number" step="0.0001" min="-90" max="90" inputmode="decimal"></label>
+                <label>Längengrad<input id="manLon" type="number" step="0.0001" min="-180" max="180" inputmode="decimal"></label>
+                <label class="span2">Zeitzone<select id="manTz"></select></label>
+                <label class="span2">Name<input id="manName" type="text" maxlength="60" placeholder="z. B. Moschee Kreuzberg"></label>
+                <button class="btn btn-gold span2" id="manSave" type="button">Ort übernehmen</button>
+              </div>
+            </details>
+          </section>
+
+          <section class="group" aria-labelledby="g-athan">
+            <h3 id="g-athan">Athan</h3>
+            <p class="group-intro">Wähle eine Stimme. Mit ▶ hörst du sie vorher an. Die Aufnahme wird beim ersten Abspielen geladen und danach auf dem Gerät gespeichert.</p>
+            <div class="voices" id="voices" role="radiogroup" aria-label="Athan-Stimme"></div>
+            <div class="row">
+              <label for="fajrVoice">Athan zum Fajr</label>
+              <select id="fajrVoice"></select>
+            </div>
+            <div class="row">
+              <label for="volume">Lautstärke</label>
+              <input id="volume" type="range" min="0" max="1" step="0.05">
+            </div>
+            <div class="row">
+              <label for="customFile">Eigene Aufnahme (MP3/M4A)</label>
+              <input id="customFile" type="file" accept="audio/*">
+            </div>
+            <h4>Pro Gebet</h4>
+            <div class="modes" id="modes"></div>
+            <div class="row">
+              <label for="preReminder">Erinnerung vorher</label>
+              <select id="preReminder">
+                <option value="0">Aus</option><option value="5">5 Minuten</option><option value="10">10 Minuten</option>
+                <option value="15">15 Minuten</option><option value="20">20 Minuten</option><option value="30">30 Minuten</option>
+              </select>
+            </div>
+          </section>
+
+          <section class="group" aria-labelledby="g-notify">
+            <h3 id="g-notify">Benachrichtigungen</h3>
+            <p class="status-line" id="notifyStatus"></p>
+            <div class="btn-row">
+              <button class="btn btn-gold" id="notifyEnable" type="button">Benachrichtigungen erlauben</button>
+              <button class="btn btn-ghost" id="notifyTest" type="button">Test senden</button>
+            </div>
+            <div class="desktop-only" hidden>
+              <label class="switch"><input type="checkbox" id="autostart"><span>Mit Windows starten</span></label>
+              <label class="switch"><input type="checkbox" id="openOnAthan"><span>Fenster öffnen, wenn der Athan beginnt</span></label>
+            </div>
+          </section>
+
+          <section class="group" aria-labelledby="g-calc">
+            <h3 id="g-calc">Berechnung</h3>
+            <div class="row">
+              <label for="method">Methode</label>
+              <select id="method"></select>
+            </div>
+            <div class="custom-angles" id="customAngles" hidden>
+              <label>Fajr-Winkel<input id="cFajr" type="number" step="0.1" min="5" max="25"></label>
+              <label>Isha-Winkel<input id="cIsha" type="number" step="0.1" min="5" max="25"></label>
+              <label>Isha nach Maghrib (Min., 0 = Winkel)<input id="cIshaMin" type="number" step="1" min="0" max="180"></label>
+            </div>
+            <div class="row">
+              <span class="row-label" id="asrLabel">Asr</span>
+              <div class="seg" role="radiogroup" aria-labelledby="asrLabel">
+                <label><input type="radio" name="asr" value="standard"><span>Standard</span></label>
+                <label><input type="radio" name="asr" value="hanafi"><span>Hanafi</span></label>
+              </div>
+            </div>
+            <div class="row">
+              <label for="highLat">Hohe Breiten</label>
+              <select id="highLat">
+                <option value="angle">Winkelbasiert (empfohlen)</option>
+                <option value="seventh">Ein Siebtel der Nacht</option>
+                <option value="middle">Mitte der Nacht</option>
+                <option value="none">Keine Anpassung</option>
+              </select>
+            </div>
+            <details class="adjust">
+              <summary>Minuten anpassen, z. B. an deine Moschee</summary>
+              <div class="adjust-grid" id="adjustGrid"></div>
+            </details>
+          </section>
+
+          <section class="group" aria-labelledby="g-view">
+            <h3 id="g-view">Anzeige</h3>
+            <div class="row">
+              <span class="row-label" id="clockLabel">Uhrzeit</span>
+              <div class="seg" role="radiogroup" aria-labelledby="clockLabel">
+                <label><input type="radio" name="clock" value="24"><span>24 Std.</span></label>
+                <label><input type="radio" name="clock" value="12"><span>12 Std.</span></label>
+              </div>
+            </div>
+          </section>
+
+          <section class="group about" aria-labelledby="g-about">
+            <h3 id="g-about">Über</h3>
+            <p>Keine Werbung, kein Konto, kein Tracking. Deine Einstellungen bleiben auf diesem Gerät. Für Benachrichtigungen bei geschlossener App kennt nur dein eigener Push-Server deinen Ort.</p>
+            <p class="small" id="versionLine"></p>
+            <p class="small">Athan-Aufnahmen: islamweb.net (Ministerium für Awqaf, Katar). Ortssuche: Open-Meteo, OpenStreetMap.</p>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Athan läuft -->
+  <div class="athan-overlay" id="athanOverlay" role="dialog" aria-modal="true" aria-labelledby="ovName" hidden>
+    <div class="ov-inner">
+      <p class="ov-label">Es ist Zeit für</p>
+      <h2 class="ov-name" id="ovName"></h2>
+      <p class="ov-ar" id="ovAr" lang="ar" dir="rtl"></p>
+      <p class="ov-voice" id="ovVoice"></p>
+      <button class="btn btn-gold btn-lg" id="ovStop" type="button"><svg><use href="#i-stop"/></svg>Athan stoppen</button>
+      <figure class="dua">
+        <blockquote lang="ar" dir="rtl">اللَّهُمَّ رَبَّ هَذِهِ الدَّعْوَةِ التَّامَّةِ، وَالصَّلَاةِ الْقَائِمَةِ، آتِ مُحَمَّدًا الْوَسِيلَةَ وَالْفَضِيلَةَ، وَابْعَثْهُ مَقَامًا مَحْمُودًا الَّذِي وَعَدْتَهُ</blockquote>
+        <figcaption>O Allah, Herr dieses vollkommenen Rufes und des Gebets, das nun verrichtet wird: Gewähre Muhammad die Wasila und den Vorzug, und erhebe ihn zu dem gepriesenen Rang, den Du ihm verheißen hast. <span class="src">Bittgebet nach dem Athan, überliefert bei al-Buchari</span></figcaption>
+      </figure>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

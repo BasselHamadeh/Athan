@@ -1,0 +1,4 @@
+{$ATHAN_DOMAIN} {
+	encode gzip
+	reverse_proxy athan:8080
+}

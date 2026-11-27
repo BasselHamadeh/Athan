@@ -1,0 +1,61 @@
+<!--
+  Alternative MSI mit dem offiziellen WiX Toolset (v5), z. B. über GitHub Actions:
+    dotnet tool install --global wix --version 5.0.2
+    wix build installer/athan.wxs -arch x64 -d Version=1.0.0 -o dist/Athan-Setup-wix.msi
+  Gleiches Verhalten wie das mitgelieferte mkmsi-Paket (gleicher UpgradeCode → ersetzt es beim Update).
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="Athan" Manufacturer="Athan" Version="$(var.Version)" Language="1031" Codepage="1252"
+           UpgradeCode="6B1D3A54-2F0E-4C8B-9A61-7E35C2D4A9F1" Scope="perUser" Compressed="yes">
+    <SummaryInformation Description="Athan – Gebetszeiten, Athan und Qibla" Manufacturer="Athan" />
+    <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="Eine neuere Version von Athan ist bereits installiert." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <Icon Id="AthanIcon" SourceFile="..\windows\athan.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AthanIcon" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+    <Property Id="ARPCOMMENTS" Value="Gebetszeiten, Athan und Qibla – ohne Werbung" />
+
+    <Feature Id="Main" Title="Athan" Level="1">
+      <ComponentRef Id="MainExe" />
+      <ComponentRef Id="StartMenu" />
+      <ComponentRef Id="Desktop" />
+      <ComponentRef Id="Autostart" />
+    </Feature>
+
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="UserPrograms" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="Athan">
+          <Component Id="MainExe" Guid="*">
+            <File Id="AthanExe" Source="..\dist\Athan.exe" />
+            <RegistryValue Root="HKCU" Key="Software\Athan" Name="InstallDir" Type="string" Value="[INSTALLFOLDER]" KeyPath="yes" />
+            <RemoveFolder Id="RemoveInstallFolder" Directory="INSTALLFOLDER" On="uninstall" />
+            <RemoveFolder Id="RemoveUserPrograms" Directory="UserPrograms" On="uninstall" />
+          </Component>
+          <Component Id="Autostart" Guid="*">
+            <RegistryValue Root="HKCU" Key="Software\Athan" Name="Autostart" Type="integer" Value="1" KeyPath="yes" />
+            <RegistryValue Root="HKCU" Key="Software\Microsoft\Windows\CurrentVersion\Run" Name="Athan" Type="string" Value="&quot;[#AthanExe]&quot; --background" />
+          </Component>
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Component Id="StartMenu" Guid="*">
+        <Shortcut Id="StartMenuShortcut" Name="Athan" Description="Gebetszeiten, Athan und Qibla" Target="[#AthanExe]" WorkingDirectory="INSTALLFOLDER" />
+        <RegistryValue Root="HKCU" Key="Software\Athan" Name="StartMenu" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+    <StandardDirectory Id="DesktopFolder">
+      <Component Id="Desktop" Guid="*">
+        <Shortcut Id="DesktopShortcut" Name="Athan" Description="Gebetszeiten, Athan und Qibla" Target="[#AthanExe]" WorkingDirectory="INSTALLFOLDER" />
+        <RegistryValue Root="HKCU" Key="Software\Athan" Name="Desktop" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+
+    <CustomAction Id="LaunchAthan" FileRef="AthanExe" ExeCommand="--installed" Return="asyncNoWait" />
+    <InstallUISequence>
+      <Custom Action="LaunchAthan" After="ExecuteAction" Condition="NOT Installed AND NOT REMOVE" />
+    </InstallUISequence>
+  </Package>
+</Wix>
