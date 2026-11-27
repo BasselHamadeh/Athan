@@ -1,4 +1,4 @@
-// Athan-Widget für Scriptable (iPhone) – Version 1.3.3
+// Athan-Widget für Scriptable (iPhone) – Version 1.3.4
 // https://github.com/BasselHamadeh/Athan · keine Werbung, kein Tracking, rechnet ohne Internet.
 // Den Code bitte nicht von Hand ändern: In der Athan-App unter Einstellungen → iPhone → „Widget-Code kopieren“
 // bekommst du ihn mit deinem Ort und deinen Einstellungen.

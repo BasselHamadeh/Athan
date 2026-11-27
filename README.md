@@ -6,7 +6,7 @@ Ohne Werbung, ohne Konto, ohne Tracking. Eine Oberfläche für drei Wege:
 |---|---|---|
 | Installation | `Athan-Setup-1.0.0.msi` doppelklicken | Web-App hosten → in Safari „Zum Home-Bildschirm“ |
 | Gebetszeiten, Monatsplan, Qibla | ✓ | ✓ (Live-Kompass mit Handy-Sensor) |
-| Athan zur Gebetszeit | ✓ auch bei geschlossenem Fenster (läuft im Infobereich) | ✓ bei geöffneter App; iPhone gesperrt: die ersten Verse über **Bark** |
+| Athan zur Gebetszeit | ✓ auch bei geschlossenem Fenster (läuft im Infobereich) | ✓ solange die App geöffnet ist |
 | Athan-Länge | ganz oder die ersten Verse | ganz oder die ersten Verse |
 | Widget | – | ✓ iPhone (Home- und Sperrbildschirm) über **Scriptable** |
 | Benachrichtigung | ✓ Windows-Benachrichtigung | ✓ bei geschlossener App **mit Push-Server** (siehe unten) |
@@ -69,22 +69,12 @@ Der Node-Server (`server/`, keine Pakete) kann dasselbe auf einem VPS oder Raspb
 
 **Was iOS erlaubt – und was nicht:** Web-Apps dürfen auf dem iPhone keinen eigenen Mitteilungston spielen; ohne Hilfe kommt die Mitteilung mit dem Standardton. Ist die App geöffnet, erklingt der Athan automatisch.
 
-### Athan-Ton bei gesperrtem iPhone (Bark)
-
-Die kostenlose, quelloffene App [Bark](https://apps.apple.com/app/id1403753865) (ohne Werbung, sammelt keine Daten) spielt eigene Mitteilungstöne. iOS erlaubt dafür höchstens 30 Sekunden – darum klingen dort **die ersten Verse** (bis zur Atempause vor 30 s, je Stimme ermittelt mit `scripts/athan-sounds.mjs`).
-
-1. Bark laden, öffnen, **Enable** tippen (Mitteilungen erlauben).
-2. In Bark unter „Usage Examples“ auf **Copy** tippen (statt `YOUR_KEY` steht dort jetzt dein Schlüssel).
-3. In Athan: Einstellungen → iPhone → einfügen → Speichern. Es kommt sofort ein Test mit Athan-Ton.
-
-Optional „Auch wenn das iPhone lautlos ist“ (kritischer Hinweis, Bark fragt einmal nach der Erlaubnis). Klappt Bark einmal nicht, kommt die normale Mitteilung.
-
 ### Widget (Scriptable)
 
 Alle Zeiten auf Home- und Sperrbildschirm – Fajr, Shuruq, Dhuhr, Asr, Maghrib, Isha, Qiyam (Beginn des letzten Nachtdrittels) – mit Countdown, Hidschri-Datum, Mondphase und dem Himmel der App. Rechnet auf dem iPhone ohne Internet.
 
 1. [Scriptable](https://apps.apple.com/app/id1405459188) laden (kostenlos, ohne Werbung).
-2. Athan: Einstellungen → iPhone → **Widget-Code kopieren**.
+2. Athan: Einstellungen → iPhone-Widget → **Widget-Code kopieren**.
 3. Scriptable → `+` → einfügen → oben „Athan“ nennen → Fertig.
 4. Home-Bildschirm gedrückt halten → Bearbeiten → Widget hinzufügen → Scriptable → Größe wählen → Widget antippen → Script „Athan“.
 

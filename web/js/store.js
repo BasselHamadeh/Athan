@@ -50,7 +50,7 @@ export function sanitize(s) {
   o.pre = [0, 5, 10, 15, 20, 30].includes(+o.pre) ? +o.pre : 0;
   o.hijriAdj = [-1, 0, 1].includes(+o.hijriAdj) ? +o.hijriAdj : 0;
   o.athanLength = o.athanLength === 'short' ? 'short' : 'full';
-  o.bark = { key: barkKey(o.bark?.key), critical: o.bark?.critical === true };
+  o.bark = { key: '', critical: false }; // Bark nicht mehr genutzt – alter Schlüssel wird beim Abgleich entfernt
   for (const k of Object.keys(DEFAULTS.modes)) if (!['athan', 'notify', 'off'].includes(o.modes[k])) o.modes[k] = DEFAULTS.modes[k];
   for (const k of Object.keys(DEFAULT_CALC.adjust)) o.calc.adjust[k] = Math.max(-60, Math.min(60, Math.round(+o.calc.adjust[k] || 0)));
   return o;
