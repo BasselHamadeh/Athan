@@ -43,16 +43,22 @@ jobs:
         run: |
           $msi = Resolve-Path "dist/Athan-Setup-$env:VERSION.msi"
           $p = Start-Process msiexec -ArgumentList "/i `"$msi`" /qn /l*v install.log" -Wait -PassThru
-          if ($p.ExitCode -ne 0) { Get-Content install.log -Tail 60; throw "Installation fehlgeschlagen: $($p.ExitCode)" }
+          if ($p.ExitCode -ne 0) {
+            Get-Content install.log -Encoding Unicode | Select-String -Pattern 'Return value 3|Note: 1: (1[0-9]{3}|2[0-9]{3})|DEBUG: Error|error code|Action start|Action ended' | Select-Object -Last 80 | ForEach-Object { $_.Line }
+            throw "Installation fehlgeschlagen: $($p.ExitCode)"
+          }
           if (-not (Test-Path "$env:LOCALAPPDATA\Programs\Athan\Athan.exe")) { throw "Athan.exe fehlt nach der Installation" }
           $p = Start-Process msiexec -ArgumentList "/x `"$msi`" /qn" -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "Deinstallation fehlgeschlagen: $($p.ExitCode)" }
           Write-Host "MSI installiert und deinstalliert ✓"
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: athan-windows-${{ env.VERSION }}
-          path: dist/*
+          path: |
+            dist/*
+            install.log
 
       - name: Release anlegen
         uses: softprops/action-gh-release@v2
