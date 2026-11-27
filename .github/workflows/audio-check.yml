@@ -10,3 +10,25 @@ jobs:
         with:
           node-version: '22'
       - run: node tests/check-audio.mjs
+
+  # Schnittpunkte für „Kurz“ und die iPhone-Töne (.caf) ermitteln
+  clips:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: ffmpeg
+        run: command -v ffmpeg || (sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg)
+      - name: Analysieren und Töne erzeugen
+        run: node scripts/athan-sounds.mjs --analyze --out sounds-check
+      - name: Töne prüfen
+        run: |
+          for f in sounds-check/*.caf; do
+            ffprobe -v error -show_entries stream=codec_tag_string,sample_rate,channels:format=duration,size -of compact "$f" | tr '\n' ' '; echo " $f"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: athan-sounds
+          path: sounds-check/
