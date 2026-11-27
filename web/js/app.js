@@ -627,6 +627,12 @@ function bind() {
     if (!viaPush) plat.showNotification('Athan – Test', { body: 'So sieht eine Gebetszeit-Benachrichtigung aus.', tag: 'test' });
     toast(viaPush ? 'Test über den Push-Server gesendet' : 'Test-Benachrichtigung angezeigt');
   };
+  $('#athanTest').onclick = async () => {
+    if (plat.isDesktop) { await plat.api('/api/test-athan', { method: 'POST' }).catch(() => toast('Test fehlgeschlagen')); return; }
+    await player.unlock();
+    const now = Date.now();
+    fire({ prayer: 'maghrib', at: now, date: zonedParts(now, tz()) });
+  };
   $('#autostart').onchange = (e) => plat.api('/api/autostart', { method: 'POST', body: { enabled: e.target.checked } }).then((r) => { desktopState.autostart = r.autostart; }).catch(() => toast('Autostart konnte nicht geändert werden'));
   $('#openOnAthan').onchange = (e) => commit({ openOnAthan: e.target.checked });
 

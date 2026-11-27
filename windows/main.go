@@ -626,6 +626,19 @@ func (a *App) routes() http.Handler {
 		a.plat.Notify("Athan – Test", "So sieht eine Gebetszeit-Benachrichtigung aus.", false)
 		writeJSON(w, map[string]bool{"ok": true})
 	}))
+	mux.HandleFunc("POST /api/test-athan", a.auth(func(w http.ResponseWriter, r *http.Request) {
+		a.mu.Lock()
+		s, loc := a.s, a.loc
+		a.mu.Unlock()
+		if s.Location == nil || loc == nil {
+			http.Error(w, "Ort fehlt", 400)
+			return
+		}
+		now := time.Now().In(loc)
+		name, ar := a.displayName("maghrib", now)
+		go a.fire("maghrib", now, "athan", name, ar, s)
+		writeJSON(w, map[string]bool{"ok": true})
+	}))
 	mux.HandleFunc("POST /api/notify", a.auth(func(w http.ResponseWriter, r *http.Request) {
 		var m struct{ Title, Body string }
 		json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&m)
