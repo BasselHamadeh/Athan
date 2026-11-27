@@ -26,10 +26,18 @@ import (
 
 const upgradeCode = "{6B1D3A54-2F0E-4C8B-9A61-7E35C2D4A9F1}"
 
+var (
+	cabMode = "fixed"
+	cabCsum = true
+)
+
 func main() {
 	exe := flag.String("exe", "Athan.exe", "Programmdatei")
 	ver := flag.String("version", "1.0.0", "Version (x.y.z)")
 	out := flag.String("out", "Athan-Setup.msi", "Ausgabe")
+	flag.StringVar(&cabMode, "cabmode", "fixed", "CAB-Kompression: fixed | flate | stored | none")
+	flag.BoolVar(&cabCsum, "csum", true, "CAB-Prüfsummen berechnen")
+	cabOut := flag.String("cabout", "", "nur das CAB schreiben (Diagnose)")
 	flag.Parse()
 
 	data, err := os.ReadFile(*exe)
@@ -38,6 +46,13 @@ func main() {
 	}
 	now := time.Now()
 	cab := buildCab([]cabFile{{name: "AthanExe", data: data}}, now)
+	if *cabOut != "" {
+		if err := os.WriteFile(*cabOut, cab, 0o644); err != nil {
+			log.Fatal(err)
+		}
+		fmt.Printf("%s: %d KB (%s, Prüfsumme %v)\n", *cabOut, len(cab)/1024, cabMode, cabCsum)
+		return
+	}
 	db := buildDatabase(*ver, len(data))
 	streams := db.streams()
 	streams = append(streams, stream{name: mangle("athan.cab", false), data: cab})
@@ -538,12 +553,7 @@ func buildCab(files []cabFile, t time.Time) []byte {
 	var sizes []int
 	for off := 0; off < len(all); off += 32768 {
 		end := min(off+32768, len(all))
-		var b bytes.Buffer
-		b.WriteString("CK")
-		w, _ := flate.NewWriter(&b, flate.BestCompression)
-		w.Write(all[off:end])
-		w.Close()
-		blocks = append(blocks, b.Bytes())
+		blocks = append(blocks, compressBlock(all[off:end]))
 		sizes = append(sizes, end-off)
 	}
 	dosDate := uint16((t.Year()-1980)<<9 | int(t.Month())<<5 | t.Day())
@@ -584,15 +594,186 @@ func buildCab(files []cabFile, t time.Time) []byte {
 	binary.Write(&c, binary.LittleEndian, uint16(0))           // iCabinet
 	binary.Write(&c, binary.LittleEndian, uint32(dataStart))   // CFFOLDER.coffCabStart
 	binary.Write(&c, binary.LittleEndian, uint16(len(blocks))) // cCFData
-	binary.Write(&c, binary.LittleEndian, uint16(1))           // MSZIP
+	compType := uint16(1)                                      // MSZIP
+	if cabMode == "none" {
+		compType = 0
+	}
+	binary.Write(&c, binary.LittleEndian, compType)
 	c.Write(fileEntries.Bytes())
 	for i, b := range blocks {
-		binary.Write(&c, binary.LittleEndian, uint32(0)) // Prüfsumme optional (0 = nicht prüfen)
+		sum := uint32(0)
+		if cabCsum {
+			sum = cabChecksum(b, uint16(len(b)), uint16(sizes[i]))
+		}
+		binary.Write(&c, binary.LittleEndian, sum)
 		binary.Write(&c, binary.LittleEndian, uint16(len(b)))
 		binary.Write(&c, binary.LittleEndian, uint16(sizes[i]))
 		c.Write(b)
 	}
 	return c.Bytes()
+}
+
+// compressBlock erzeugt einen CFDATA-Block. Standard: eigener Deflate-Kodierer mit festen
+// Huffman-Codes (ein abgeschlossener BFINAL-Block je CFDATA) – so, wie der Windows-Entpacker
+// es sicher versteht.
+func compressBlock(data []byte) []byte {
+	switch cabMode {
+	case "none":
+		return append([]byte(nil), data...)
+	case "stored":
+		b := []byte{'C', 'K', 1, byte(len(data)), byte(len(data) >> 8), ^byte(len(data)), ^byte(len(data) >> 8)}
+		return append(b, data...)
+	case "flate":
+		var b bytes.Buffer
+		b.WriteString("CK")
+		w, _ := flate.NewWriter(&b, flate.BestCompression)
+		w.Write(data)
+		w.Close()
+		return b.Bytes()
+	}
+	return append([]byte{'C', 'K'}, deflateFixed(data)...)
+}
+
+type bitWriter struct {
+	buf []byte
+	acc uint64
+	n   uint
+}
+
+func (w *bitWriter) bits(v uint32, n uint) {
+	w.acc |= uint64(v) << w.n
+	w.n += n
+	for w.n >= 8 {
+		w.buf = append(w.buf, byte(w.acc))
+		w.acc >>= 8
+		w.n -= 8
+	}
+}
+
+// huff schreibt einen Huffman-Code (MSB zuerst, wie RFC 1951 verlangt).
+func (w *bitWriter) huff(code uint32, n uint) {
+	var r uint32
+	for i := uint(0); i < n; i++ {
+		r = r<<1 | (code>>i)&1
+	}
+	w.bits(r, n)
+}
+
+func (w *bitWriter) flush() []byte {
+	if w.n > 0 {
+		w.buf = append(w.buf, byte(w.acc))
+		w.acc, w.n = 0, 0
+	}
+	return w.buf
+}
+
+var (
+	lenBase   = [29]int{3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258}
+	lenExtra  = [29]uint{0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0}
+	distBase  = [30]int{1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577}
+	distExtra = [30]uint{0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13}
+)
+
+func fixedSym(w *bitWriter, sym int) {
+	switch {
+	case sym <= 143:
+		w.huff(uint32(0x30+sym), 8)
+	case sym <= 255:
+		w.huff(uint32(0x190+sym-144), 9)
+	case sym <= 279:
+		w.huff(uint32(sym-256), 7)
+	default:
+		w.huff(uint32(0xC0+sym-280), 8)
+	}
+}
+
+// deflateFixed: LZ77 (Hash-Ketten) + feste Huffman-Codes, ein einziger Block mit BFINAL.
+func deflateFixed(data []byte) []byte {
+	w := &bitWriter{}
+	w.bits(1, 1) // BFINAL
+	w.bits(1, 2) // BTYPE = 01 (fest)
+	const hbits = 15
+	head := make([]int32, 1<<hbits)
+	for i := range head {
+		head[i] = -1
+	}
+	prev := make([]int32, len(data))
+	hash := func(p int) int { return (int(data[p])<<10 ^ int(data[p+1])<<5 ^ int(data[p+2])) & (1<<hbits - 1) }
+	insert := func(p int) {
+		if p+2 < len(data) {
+			h := hash(p)
+			prev[p] = head[h]
+			head[h] = int32(p)
+		}
+	}
+	for i := 0; i < len(data); {
+		bestLen, bestDist := 0, 0
+		if i+2 < len(data) {
+			maxLen := min(258, len(data)-i)
+			for j, steps := head[hash(i)], 0; j >= 0 && i-int(j) <= 32768 && steps < 128; j, steps = prev[j], steps+1 {
+				k := 0
+				for k < maxLen && data[int(j)+k] == data[i+k] {
+					k++
+				}
+				if k > bestLen {
+					bestLen, bestDist = k, i-int(j)
+					if k == maxLen {
+						break
+					}
+				}
+			}
+		}
+		if bestLen >= 3 {
+			li := 28
+			for lenBase[li] > bestLen {
+				li--
+			}
+			fixedSym(w, 257+li)
+			w.bits(uint32(bestLen-lenBase[li]), lenExtra[li])
+			di := 29
+			for distBase[di] > bestDist {
+				di--
+			}
+			w.huff(uint32(di), 5)
+			w.bits(uint32(bestDist-distBase[di]), distExtra[di])
+			for k := 0; k < bestLen; k++ {
+				insert(i + k)
+			}
+			i += bestLen
+		} else {
+			fixedSym(w, int(data[i]))
+			insert(i)
+			i++
+		}
+	}
+	fixedSym(w, 256) // Blockende
+	return w.flush()
+}
+
+// cabChecksum nach MS-CAB (wie libmspack): XOR über 32-Bit-Wörter, Restbytes in umgekehrter Folge.
+func cabChecksum(data []byte, cbData, cbUncomp uint16) uint32 {
+	compute := func(b []byte, seed uint32) uint32 {
+		csum := seed
+		n := len(b) / 4
+		for i := 0; i < n; i++ {
+			csum ^= binary.LittleEndian.Uint32(b[i*4:])
+		}
+		var ul uint32
+		rest := b[n*4:]
+		switch len(rest) {
+		case 3:
+			ul = uint32(rest[0])<<16 | uint32(rest[1])<<8 | uint32(rest[2])
+		case 2:
+			ul = uint32(rest[0])<<8 | uint32(rest[1])
+		case 1:
+			ul = uint32(rest[0])
+		}
+		return csum ^ ul
+	}
+	var hdr [4]byte
+	binary.LittleEndian.PutUint16(hdr[0:], cbData)
+	binary.LittleEndian.PutUint16(hdr[2:], cbUncomp)
+	return compute(hdr[:], compute(data, 0))
 }
 
 // ======================= Compound File (MS-CFB v3) =======================

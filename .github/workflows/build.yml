@@ -31,6 +31,25 @@ jobs:
         shell: bash
         run: ./build.sh
 
+      - name: CAB-Varianten mit Windows prüfen (expand.exe)
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path dist/Athan.exe
+          $want = (Get-FileHash $exe).Hash
+          Push-Location tools
+          foreach ($m in 'fixed','flate','stored','none') { foreach ($c in 'true','false') {
+            $cab = "$env:RUNNER_TEMP\t-$m-$c.cab"
+            go run ./mkmsi -exe $exe -cabmode $m "-csum=$c" -cabout $cab | Out-Null
+            $dir = "$env:RUNNER_TEMP\x-$m-$c"; New-Item -ItemType Directory -Force $dir | Out-Null
+            $o = & expand.exe $cab "-F:*" $dir 2>&1
+            $f = Join-Path $dir 'AthanExe'
+            $ok = (Test-Path $f) -and ((Get-FileHash $f).Hash -eq $want)
+            $msg = if ($ok) { 'OK' } else { 'FEHLER ' + (($o | Out-String) -replace '\s+', ' ') }
+            Write-Host ("CAB-TEST {0,-7} csum={1,-5} {2}" -f $m, $c, $msg)
+          }}
+          Pop-Location
+
       - name: MSI zusätzlich mit WiX
         continue-on-error: true
         shell: bash
