@@ -71,14 +71,9 @@ Der Node-Server (`server/`, keine Pakete) kann dasselbe auf einem VPS oder Raspb
 
 ### Widget (Scriptable)
 
-Alle Zeiten auf Home- und Sperrbildschirm – Fajr, Shuruq, Dhuhr, Asr, Maghrib, Isha, Qiyam (Beginn des letzten Nachtdrittels) – mit Countdown, Hidschri-Datum, Mondphase und dem Himmel der App. Rechnet auf dem iPhone ohne Internet.
+Home- und Sperrbildschirm: alle Zeiten (Fajr, Shuruq, Dhuhr, Asr, Maghrib, Isha, Qiyam), Hidschri-Datum, Mondphase, der Himmel der App; auf dem Sperrbildschirm groß das nächste Gebet und klein das danach. Rechnet ohne Internet. Mit Internet übernimmt es Ort und Berechnung aus der App (stündlich, `GET /api/widget`) und aktualisiert sich selbst, wenn eine neue Version erscheint.
 
-1. [Scriptable](https://apps.apple.com/app/id1405459188) laden (kostenlos, ohne Werbung).
-2. Athan: Einstellungen → iPhone-Widget → **Widget-Code kopieren**.
-3. Scriptable → `+` → einfügen → oben „Athan“ nennen → Fertig.
-4. Home-Bildschirm gedrückt halten → Bearbeiten → Widget hinzufügen → Scriptable → Größe wählen → Widget antippen → Script „Athan“.
-
-Der Code entsteht mit `node scripts/build-widget.mjs` aus derselben Engine wie die App (`web/widget/athan-widget.js`).
+Einrichten: [Scriptable](https://apps.apple.com/app/id1405459188) laden → Athan: Einstellungen → Mehr Einstellungen → iPhone-Widget → Code kopieren → in Scriptable als neues Skript einfügen → Widget hinzufügen → Scriptable → Skript wählen. Der Code entsteht mit `node scripts/build-widget.mjs` aus derselben Engine wie die App.
 
 Android (Chrome): genauso, „Zum Startbildschirm hinzufügen“ bzw. „App installieren“.
 

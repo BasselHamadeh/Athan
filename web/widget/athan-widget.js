@@ -1,9 +1,9 @@
-// Athan-Widget für Scriptable (iPhone) – Version 1.3.5
+// Athan-Widget für Scriptable (iPhone) – Version 1.4.0
 // https://github.com/BasselHamadeh/Athan · keine Werbung, kein Tracking, rechnet ohne Internet.
-// Den Code bitte nicht von Hand ändern: In der Athan-App unter Einstellungen → iPhone → „Widget-Code kopieren“
-// bekommst du ihn mit deinem Ort und deinen Einstellungen.
+// Aktualisiert sich selbst und übernimmt Ort und Einstellungen aus der Athan-App.
 
 const CONFIG = /*CONFIG*/{"name":"","lat":null,"lon":null,"tz":"","calc":{"method":"MWL","asr":"standard","highLat":"angle","adjust":{}},"clock":"24","hijriAdj":0}/*END*/;
+const WIDGET_VERSION = '1.4.0';
 
 // ---- praytimes.js ----
 const M_praytimes = (() => {
@@ -477,15 +477,17 @@ const { skyAt } = M_palette;
 
 // ---------- Widget (Scriptable) ----------
 // Klein: alle Zeiten als Liste · Mittel: nächstes Gebet + alle Zeiten · Groß: dazu Datum, Hidschri, Mond
-// Sperrbildschirm: rechteckig, rund, als Zeile. Alles wird auf dem iPhone berechnet – ohne Internet.
+// Sperrbildschirm: groß das nächste Gebet, klein das danach · rund · als Zeile über der Uhr.
+// Rechnet auf dem iPhone ohne Internet. Mit Internet: übernimmt Ort/Einstellungen aus der Athan-App
+// (stündlich) und aktualisiert sich selbst, wenn es eine neue Version gibt (zweimal am Tag).
 
-const C = CONFIG;
-const HAS_PLACE = Number.isFinite(C.lat) && Number.isFinite(C.lon) && !!C.tz;
+let C = CONFIG;
 const DAY = 86400000;
 const NAMES = {
   fajr: ['Fajr', 'الفجر'], sunrise: ['Shuruq', 'الشروق'], dhuhr: ['Dhuhr', 'الظهر'], asr: ['Asr', 'العصر'],
   maghrib: ['Maghrib', 'المغرب'], isha: ['Isha', 'العشاء'], qiyam: ['Qiyam', 'القيام'],
 };
+const SYMBOL = { fajr: 'sun.haze.fill', sunrise: 'sunrise.fill', dhuhr: 'sun.max.fill', asr: 'sun.min.fill', maghrib: 'sunset.fill', isha: 'moon.stars.fill' };
 const ORDER = ['fajr', 'sunrise', 'dhuhr', 'asr', 'maghrib', 'isha', 'qiyam'];
 
 const GOLD = new Color('#D8B26E');
@@ -497,9 +499,68 @@ const serif = (size, bold) => new Font(bold ? 'IowanOldStyle-Bold' : 'IowanOldSt
 const arabic = (size) => new Font('GeezaPro', size);
 const digits = (size, weight = 'semibold') => (weight === 'bold' ? Font.boldRoundedSystemFont(size) : weight === 'medium' ? Font.mediumRoundedSystemFont(size) : Font.semiboldRoundedSystemFont(size));
 
+// ---------- Einstellungen: eingebettet, zwischengespeichert, aus der App ----------
+const hasPlace = () => Number.isFinite(C.lat) && Number.isFinite(C.lon) && typeof C.tz === 'string' && !!C.tz;
+let timeFmt = null;
+function useConfig(cfg) { C = cfg; timeFmt = null; }
+
+function stateFile() { const fm = FileManager.local(); return [fm, fm.joinPath(fm.documentsDirectory(), 'athan-widget.json')]; }
+function readState() {
+  try { const [fm, p] = stateFile(); return fm.fileExists(p) ? JSON.parse(fm.readString(p)) || {} : {}; } catch { return {}; }
+}
+function writeState(s) { try { const [fm, p] = stateFile(); fm.writeString(p, JSON.stringify(s)); } catch { /* nicht schlimm */ } }
+
+const validServer = (s) => typeof s === 'string' && /^https:\/\/[a-z0-9.-]+(:\d+)?$/i.test(s);
+
+// Ort und Berechnung so, wie in der Athan-App eingestellt (über den eigenen Server) – fällt sonst auf
+// den zuletzt geladenen Stand bzw. den eingebetteten Code zurück.
+async function loadConfig(state, now) {
+  const base = CONFIG;
+  let cfg = state.cfg && state.cfgFor === base.id ? { ...base, ...state.cfg } : base;
+  if (base.id && validServer(base.server) && now - (state.cfgAt || 0) > 3600000) {
+    state.cfgAt = now;
+    try {
+      const r = new Request(`${base.server}/api/widget?id=${encodeURIComponent(base.id)}`);
+      r.timeoutInterval = 6;
+      const j = await r.loadJSON();
+      if (j && Number.isFinite(j.lat) && Number.isFinite(j.lon) && typeof j.tz === 'string' && j.calc && typeof j.calc === 'object') {
+        state.cfg = { name: String(j.name || ''), lat: j.lat, lon: j.lon, tz: j.tz, calc: j.calc, clock: j.clock === '12' ? '12' : '24', hijriAdj: [-1, 0, 1].includes(j.hijriAdj) ? j.hijriAdj : 0 };
+        state.cfgFor = base.id;
+        cfg = { ...base, ...state.cfg };
+      }
+    } catch (e) { console.log('Einstellungen nicht geladen: ' + e); }
+    writeState(state);
+  }
+  return cfg;
+}
+
+const newer = (a, b) => { const x = a.split('.').map(Number), y = b.split('.').map(Number); for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false; };
+
+// Neue Version vom eigenen Server holen und sich selbst ersetzen – die eigenen Einstellungen bleiben erhalten.
+async function selfUpdate(state, now) {
+  if (!validServer(CONFIG.server) || now - (state.codeAt || 0) < 12 * 3600000) return false;
+  state.codeAt = now;
+  writeState(state);
+  try {
+    const r = new Request(`${CONFIG.server}/widget/athan-widget.js`);
+    r.timeoutInterval = 8;
+    const code = await r.loadString();
+    const v = /WIDGET_VERSION = '(\d+\.\d+\.\d+)'/.exec(code)?.[1];
+    if (!v || !newer(v, WIDGET_VERSION) || !code.includes('/*CONFIG*/') || !/await main\(\);\s*$/.test(code)) return false;
+    const mine = code.replace(/\/\*CONFIG\*\/[\s\S]*?\/\*END\*\//, () => `/*CONFIG*/${JSON.stringify(CONFIG)}/*END*/`);
+    const fm = FileManager.iCloud().isFileStoredIniCloud(module.filename) ? FileManager.iCloud() : FileManager.local();
+    fm.writeString(module.filename, mine);
+    console.log(`Athan-Widget aktualisiert: ${WIDGET_VERSION} → ${v}`);
+    return true;
+  } catch (e) { console.log('Update nicht möglich: ' + e); return false; }
+}
+
 // ---------- Daten ----------
-const timeFmt = new Intl.DateTimeFormat('de-DE', { timeZone: C.tz || 'UTC', hour: '2-digit', minute: '2-digit', hourCycle: C.clock === '12' ? 'h12' : 'h23' });
-const fmt = (ms) => (Number.isFinite(ms) ? timeFmt.format(ms) : '–');
+function fmt(ms) {
+  if (!Number.isFinite(ms)) return '–';
+  if (!timeFmt) timeFmt = new Intl.DateTimeFormat('de-DE', { timeZone: C.tz || 'UTC', hour: '2-digit', minute: '2-digit', hourCycle: C.clock === '12' ? 'h12' : 'h23' });
+  return timeFmt.format(ms);
+}
 const sameDay = (a, b) => a.y === b.y && a.m === b.m && a.d === b.d;
 
 function dayData(now) {
@@ -520,22 +581,23 @@ function dayData(now) {
   return { now, today, D, t, tt, times, next, after, tomorrow: !sameDay(D, today), ramadanNext: hNext?.m === 9 };
 }
 
+// Name für eine Zeile – im Ramadan heißt Maghrib „Iftar“
+const shownName = (d, e) => (d.ramadanNext && e === d.next && e.prayer === 'maghrib' ? 'Iftar' : NAMES[e.prayer][0]);
+
 function nextLabel(d) {
   if (!d.next) return '';
   const p = d.next.prayer;
   if (p === 'sunrise') return 'Fajr-Zeit endet';
-  if (d.ramadanNext && p === 'maghrib') return 'Iftar';
+  if (d.ramadanNext && p === 'maghrib') return 'Fastenbrechen';
   if (d.ramadanNext && p === 'fajr') return 'Suhoor endet';
-  return 'Nächstes Gebet';
+  return d.tomorrow ? 'Nächstes Gebet, morgen' : 'Nächstes Gebet';
 }
-
-// kurz vor dem Countdown: „in“, im Ramadan „Iftar in“ / „Suhoor endet in“
-function inLabel(d) {
+// kurzer Hinweis neben der Uhrzeit (nur wenn er etwas sagt)
+function sideLabel(d) {
   const p = d.next?.prayer;
-  if (p === 'sunrise') return 'Fajr endet in';
-  if (d.ramadanNext && p === 'maghrib') return 'Iftar in';
-  if (d.ramadanNext && p === 'fajr') return 'Suhoor endet in';
-  return 'in';
+  if (p === 'sunrise') return 'Fajr endet';
+  if (d.ramadanNext && p === 'fajr') return 'Suhoor endet';
+  return d.tomorrow ? 'morgen' : ''; // im Ramadan steht „Iftar“ schon als Name
 }
 
 function hijriText(now, locale) {
@@ -659,10 +721,15 @@ function text(stack, s, font, color, opts = {}) {
 }
 function hstack(parent, spacing = 0) { const s = parent.addStack(); s.layoutHorizontally(); s.centerAlignContent(); s.spacing = spacing; return s; }
 function vstack(parent, spacing = 0) { const s = parent.addStack(); s.layoutVertically(); s.spacing = spacing; return s; }
-function countdown(stack, at, font, color) {
-  const dt = stack.addDate(new Date(at));
-  dt.applyTimerStyle(); dt.font = font; dt.textColor = color; dt.lineLimit = 1;
-  return dt;
+function symbol(stack, prayer, size, color) {
+  try {
+    const sf = SFSymbol.named(SYMBOL[prayer] || 'moon.stars.fill');
+    sf.applyFont(Font.semiboldSystemFont(size));
+    const img = stack.addImage(sf.image);
+    img.imageSize = new Size(size + 2, size + 2);
+    img.tintColor = color;
+    return img;
+  } catch { return null; }
 }
 const rowState = (d, k) => {
   const at = d.times[k];
@@ -682,12 +749,9 @@ function small(d) {
   const w = newWidget('small', d);
   w.setPadding(10, 11, 9, 11);
   const head = hstack(w, 4);
-  if (d.next) {
-    text(head, NAMES[d.next.prayer][0], serif(12, true), GOLD, { scale: 0.8 });
-    countdown(head, d.next.at, digits(10.5, 'medium'), INK2);
-  } else text(head, C.name, Font.semiboldSystemFont(11), INK2);
+  text(head, C.name || 'Athan', Font.semiboldSystemFont(11), INK2, { scale: 0.75 });
   head.addSpacer(22); // Platz für den Mond
-  w.addSpacer(3);
+  w.addSpacer(4);
   for (const k of ORDER) {
     const st = rowState(d, k);
     const row = hstack(w);
@@ -704,17 +768,18 @@ function medium(d) {
   const w = newWidget('medium', d);
   w.setPadding(12, 14, 12, 14);
   const head = hstack(w, 6);
-  text(head, C.name, Font.semiboldSystemFont(12), INK2);
-  text(head, d.tomorrow ? 'Morgen' : gregText(d.now, { weekday: 'short', day: 'numeric', month: 'short' }), Font.regularSystemFont(12), INK3);
+  text(head, C.name || 'Athan', Font.semiboldSystemFont(12), INK2);
+  text(head, gregText(d.now, { weekday: 'short', day: 'numeric', month: 'short' }), Font.regularSystemFont(12), INK3);
   head.addSpacer(26); // Platz für den Mond
   w.addSpacer(4);
   if (d.next) {
     const nx = hstack(w, 8);
-    text(nx, NAMES[d.next.prayer][0], serif(25, true), INK, { scale: 0.6 });
+    text(nx, shownName(d, d.next), serif(25, true), INK, { scale: 0.6 });
     text(nx, NAMES[d.next.prayer][1], arabic(15), GOLD);
     nx.addSpacer();
-    text(nx, inLabel(d), Font.regularSystemFont(11), INK3);
-    countdown(nx, d.next.at, digits(17, 'medium'), INK2).rightAlignText();
+    const side = sideLabel(d);
+    if (side) text(nx, side, Font.regularSystemFont(11), INK3);
+    text(nx, fmt(d.next.at), digits(22, 'semibold'), GOLD);
   }
   w.addSpacer();
   const cols = hstack(w, 0);
@@ -737,9 +802,9 @@ function large(d) {
   const sp = specialDay(d.now, C.tz, C.hijriAdj || 0);
   // kleine iPhones (SE) und Tage mit Hinweis (Ramadan, Eid …): enger setzen, damit alles Platz hat
   const tight = widgetSize('large')[1] < 345 || !!sp;
-  const rowPad = tight ? 1.8 : 3.2, rowFont = tight ? 14 : 15;
+  const rowPad = tight ? 2.2 : 3.6, rowFont = tight ? 14 : 15;
   w.setPadding(15, 16, 13, 16);
-  text(w, C.name, Font.semiboldSystemFont(13), INK2);
+  text(w, C.name || 'Athan', Font.semiboldSystemFont(13), INK2);
   w.addSpacer(2);
   text(w, gregText(d.now, { weekday: 'long', day: 'numeric', month: 'long' }), serif(16, false), INK);
   const hj = hstack(w, 8);
@@ -759,17 +824,14 @@ function large(d) {
   }
   w.addSpacer();
   if (d.next) {
-    text(w, nextLabel(d) + (d.tomorrow ? ' (morgen)' : ''), Font.regularSystemFont(11), INK3);
+    text(w, nextLabel(d), Font.regularSystemFont(11), INK3);
     const nx = hstack(w, 8);
-    text(nx, NAMES[d.next.prayer][0], serif(tight ? 24 : 27, true), INK, { scale: 0.6 });
+    text(nx, shownName(d, d.next), serif(tight ? 24 : 28, true), INK, { scale: 0.6 });
     text(nx, NAMES[d.next.prayer][1], arabic(tight ? 15 : 17), GOLD);
     nx.addSpacer();
-    text(nx, fmt(d.next.at), digits(tight ? 21 : 24, 'semibold'), GOLD);
-    const cd = hstack(w, 4);
-    text(cd, 'noch', Font.regularSystemFont(12), INK3);
-    countdown(cd, d.next.at, digits(13, 'medium'), INK2);
+    text(nx, fmt(d.next.at), digits(tight ? 22 : 26, 'semibold'), GOLD);
   }
-  w.addSpacer(tight ? 6 : 9);
+  w.addSpacer(tight ? 6 : 10);
   const list = vstack(w, 1);
   for (const k of ORDER) {
     const st = rowState(d, k);
@@ -786,25 +848,26 @@ function large(d) {
   return w;
 }
 
-// Sperrbildschirm (iOS färbt selbst ein – nur Text). Groß das nächste Gebet, darunter klein das danach;
+// Sperrbildschirm (iOS färbt selbst ein). Groß das nächste Gebet mit Symbol, darunter klein das danach;
 // zur Gebetszeit lädt das Widget neu und rückt eins weiter.
 function lockRect(d) {
   const w = new ListWidget();
-  w.setPadding(0, 3, 0, 3);
+  w.setPadding(0, 2, 0, 2);
   if (!d.next) { text(w, 'Athan', Font.semiboldSystemFont(15), Color.white()); return w; }
-  const name = (e) => (d.ramadanNext && e === d.next && e.prayer === 'maghrib' ? 'Iftar' : NAMES[e.prayer][0]);
   w.addSpacer();
-  const a = hstack(w, 6);
-  text(a, name(d.next), Font.boldSystemFont(22), Color.white(), { scale: 0.6 });
+  const a = hstack(w, 5);
+  symbol(a, d.next.prayer, 15, Color.white());
+  text(a, shownName(d, d.next), Font.boldSystemFont(22), Color.white(), { scale: 0.6 });
   a.addSpacer();
   text(a, fmt(d.next.at), Font.boldRoundedSystemFont(22), Color.white(), { scale: 0.6 });
   const n = d.after[0];
   if (n) {
-    w.addSpacer(2);
-    const b = hstack(w, 6);
-    text(b, name(n), Font.mediumSystemFont(14), Color.white(), { opacity: 0.62 });
+    w.addSpacer(3);
+    const b = hstack(w, 5);
+    symbol(b, n.prayer, 11, new Color('#FFFFFF', 0.62));
+    text(b, NAMES[n.prayer][0], Font.semiboldSystemFont(14), Color.white(), { opacity: 0.62 });
     b.addSpacer();
-    text(b, fmt(n.at), Font.mediumRoundedSystemFont(14), Color.white(), { opacity: 0.62 });
+    text(b, fmt(n.at), Font.semiboldRoundedSystemFont(14), Color.white(), { opacity: 0.62 });
   }
   w.addSpacer();
   return w;
@@ -814,33 +877,30 @@ function lockCircle(d) {
   w.addAccessoryWidgetBackground = true;
   w.setPadding(2, 2, 2, 2);
   if (!d.next) return w;
-  const a = hstack(w); a.addSpacer(); text(a, NAMES[d.next.prayer][0], Font.semiboldSystemFont(11), Color.white(), { scale: 0.6 }); a.addSpacer();
-  const b = hstack(w); b.addSpacer(); text(b, fmt(d.next.at), Font.boldRoundedSystemFont(15), Color.white(), { scale: 0.6 }); b.addSpacer();
+  const s = hstack(w); s.addSpacer(); symbol(s, d.next.prayer, 11, Color.white()); s.addSpacer();
+  const b = hstack(w); b.addSpacer(); text(b, fmt(d.next.at), Font.boldRoundedSystemFont(16), Color.white(), { scale: 0.6 }); b.addSpacer();
+  const a = hstack(w); a.addSpacer(); text(a, shownName(d, d.next), Font.semiboldSystemFont(10), Color.white(), { scale: 0.6, opacity: 0.8 }); a.addSpacer();
   return w;
 }
 function lockInline(d) {
   const w = new ListWidget();
   if (!d.next) { w.addText('Athan'); return w; }
-  try { const img = w.addImage(SFSymbol.named('moon.stars.fill').image); img.imageSize = new Size(12, 12); } catch { /* ohne Symbol */ }
-  w.addText(`${NAMES[d.next.prayer][0]} ${fmt(d.next.at)}`);
+  try { const img = w.addImage(SFSymbol.named(SYMBOL[d.next.prayer] || 'moon.stars.fill').image); img.imageSize = new Size(12, 12); } catch { /* ohne Symbol */ }
+  w.addText(`${shownName(d, d.next)} ${fmt(d.next.at)}`);
   return w;
 }
 
-function setupWidget() {
+function placeless() {
   const w = new ListWidget();
   const g = new LinearGradient(); g.colors = [new Color('#071430'), new Color('#183568')]; g.locations = [0, 1];
   w.backgroundGradient = g;
-  w.setPadding(14, 14, 14, 14);
   text(w, 'Athan', serif(18, true), GOLD);
-  w.addSpacer(6);
-  const t = w.addText('Öffne Athan → Einstellungen → iPhone → „Widget-Code kopieren“ und füge den Code hier ein.');
-  t.font = Font.regularSystemFont(11); t.textColor = INK2;
   return w;
 }
 
-function build(family) {
-  if (!HAS_PLACE) return setupWidget();
-  const d = dayData(Date.now());
+function build(family, now = Date.now()) {
+  if (!hasPlace()) return placeless();
+  const d = dayData(now);
   let w;
   switch (family) {
     case 'medium': w = medium(d); break;
@@ -850,28 +910,25 @@ function build(family) {
     case 'accessoryInline': w = lockInline(d); break;
     default: w = small(d);
   }
-  // Nach dem nächsten Gebet neu zeichnen; in der Dämmerung öfter (Himmelsfarben)
-  const alt = sunAltitude(d.now, C.lat, C.lon);
-  const soon = d.now + (alt > -20 && alt < 14 ? 15 : 45) * 60000;
-  w.refreshAfterDate = new Date(Math.min(soon, d.next ? d.next.at + 2000 : soon));
+  // Neu zeichnen direkt nach dem nächsten Gebet. Home-Bildschirm zusätzlich für die Himmelsfarben
+  // (Dämmerung alle 15 Min.); Sperrbildschirm nur zum Gebet – so bleibt iOS-Budget für pünktliches Umschalten.
+  const atNext = d.next ? d.next.at + 1500 : now + 3600000;
+  let when = atNext;
+  if (!family.startsWith('accessory')) {
+    const alt = sunAltitude(now, C.lat, C.lon);
+    when = Math.min(atNext, now + (alt > -20 && alt < 14 ? 15 : 60) * 60000);
+  }
+  w.refreshAfterDate = new Date(Math.max(when, now + 30000));
   return w;
 }
 
 async function main() {
-  if (config.runsInWidget) {
-    Script.setWidget(build(config.widgetFamily || 'small'));
-    Script.complete();
-    return;
-  }
-  // In der App: Vorschau
-  const sizes = [['Klein', 'small', 'presentSmall'], ['Mittel', 'medium', 'presentMedium'], ['Groß', 'large', 'presentLarge'], ['Sperrbildschirm', 'accessoryRectangular', 'presentAccessoryRectangular']];
-  const a = new Alert();
-  a.title = 'Athan-Widget';
-  a.message = HAS_PLACE ? `${C.name}. Vorschau wählen – auf dem Home-Bildschirm dann Widget hinzufügen → Scriptable → Script „${Script.name()}“.` : 'Zuerst den Widget-Code aus der Athan-App einfügen.';
-  for (const [n] of sizes) a.addAction(n);
-  a.addCancelAction('Fertig');
-  const i = await a.presentSheet();
-  if (i >= 0) await build(sizes[i][1])[sizes[i][2]]();
+  const now = Date.now();
+  const state = readState();
+  useConfig(await loadConfig(state, now));
+  if (config.runsInWidget) Script.setWidget(build(config.widgetFamily || 'small', now));
+  else await build('large', now).presentLarge(); // Tippen aufs Widget öffnet die große Ansicht
+  await selfUpdate(state, now);
   Script.complete();
 }
 

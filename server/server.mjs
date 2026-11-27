@@ -15,7 +15,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { generateVapidKeys, sendPush } from './webpush.mjs';
-import { cleanSettings, cleanSubscription, subId, messagesFor, isAudio, barkPayload, BARK_URL, testData } from './core.mjs';
+import { cleanSettings, cleanSubscription, subId, messagesFor, isAudio, barkPayload, BARK_URL, testData, widgetSettings } from './core.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.resolve(process.env.PUBLIC_DIR || path.join(HERE, '..', 'web'));
@@ -184,6 +184,11 @@ async function handler(req, res) {
     const p = decodeURIComponent(url.pathname);
     // --- API ---
     if (p === '/api/config') return json(res, 200, { push: true, audio: true, vapidPublicKey: vapid.publicKey });
+    if (p === '/api/widget' && req.method === 'GET') {
+      const id = new URL(req.url, 'http://x').searchParams.get('id') || '';
+      const s = /^[0-9a-f]{32}$/.test(id) ? subs.get(id) : null;
+      return s ? json(res, 200, widgetSettings(s.settings)) : json(res, 404, { error: 'Unbekannt' });
+    }
     if (p.startsWith('/api/')) {
       if (req.method !== 'POST') return json(res, 405, { error: 'POST erwartet' });
       if (limited(req)) return json(res, 429, { error: 'Zu viele Anfragen' });

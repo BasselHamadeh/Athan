@@ -61,6 +61,14 @@ ok('Abo angelegt', r.status === 200);
 const w = env.ATHAN.writes;
 r = await (await post('/api/subscribe', { subscription, settings })).json();
 ok('Unverändertes Abo schreibt nicht erneut', r.unchanged === true && env.ATHAN.writes === w);
+{ // iPhone-Widget holt Ort und Berechnung
+  const { subId } = await import('../server/core.mjs');
+  const id = await subId(new URL(endpoint).href);
+  const wj = await (await call('/api/widget?id=' + id)).json();
+  ok('Widget-Einstellungen abrufbar', wj.name === 'Berlin' && wj.lat === 52.52 && wj.tz === 'Europe/Berlin' && wj.calc.method === 'MWL' && !('modes' in wj) && !('bark' in wj));
+  ok('Widget: unbekannte Kennung → 404', (await call('/api/widget?id=' + 'f'.repeat(32))).status === 404);
+  ok('Widget: ungültige Kennung → 400', (await call('/api/widget?id=../x')).status === 400);
+}
 
 // 4) Planer: genau zur Gebetsminute (Freitag, 27.11.2026 – heißt trotzdem Dhuhr)
 const t = computeDay({ y: 2026, m: 11, d: 27 }, berlin, { method: 'MWL' });

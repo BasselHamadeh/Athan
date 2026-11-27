@@ -235,15 +235,6 @@
             </div>
           </section>
 
-          <section class="group g-iphone" id="iphoneGroup" aria-labelledby="g-iphone" hidden>
-            <h3 id="g-iphone">iPhone-Widget</h3>
-            <div class="btn-row">
-              <button class="btn btn-gold" id="widgetCopy" type="button">Widget-Code kopieren</button>
-              <a class="btn btn-ghost" href="scriptable:///add">Scriptable öffnen</a>
-            </div>
-            <textarea class="widget-code" id="widgetCode" readonly hidden aria-label="Widget-Code"></textarea>
-          </section>
-
           <section class="group g-voice" aria-labelledby="g-athan">
             <h3 id="g-athan">Stimme</h3>
             <p class="group-intro">Mit ▶ vorher anhören. Die Aufnahme bleibt danach auf dem Gerät.</p>
@@ -320,6 +311,11 @@
                 <label><input type="radio" name="clock" value="12"><span>12 Std.</span></label>
               </div>
             </div>
+            <div class="row" id="widgetRow" hidden>
+              <span class="row-label">iPhone-Widget</span>
+              <button class="btn btn-ghost btn-sm" id="widgetCopy" type="button">Code kopieren</button>
+            </div>
+            <textarea class="widget-code" id="widgetCode" readonly hidden aria-label="Widget-Code"></textarea>
             <details class="adjust">
               <summary>Minuten an deine Moschee anpassen</summary>
               <div class="adjust-grid" id="adjustGrid"></div>

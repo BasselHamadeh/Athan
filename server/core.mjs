@@ -102,6 +102,12 @@ function hijriMonth(epoch, tz, adj) {
 }
 
 /** Alle Benachrichtigungen, deren Zeitpunkt in (from, to] liegt. */
+/** Was das iPhone-Widget braucht (nichts weiter). */
+export function widgetSettings(s) {
+  const { location: l, calc, clock, hijriAdj } = s;
+  return { name: l.name, lat: l.lat, lon: l.lon, tz: l.tz, calc, clock, hijriAdj };
+}
+
 /** Mitteilung zur Gebetszeit – gleiche Form für echte Gebete und den Test. */
 export function prayerData(settings, e, mode = 'athan') {
   const { location, clock } = settings;

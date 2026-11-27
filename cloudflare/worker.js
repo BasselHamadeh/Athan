@@ -1,7 +1,7 @@
 // Athan auf Cloudflare Workers (kostenlos): liefert die Web-App aus, verschickt jede Minute fällige
 // Push-Benachrichtigungen (auch bei geschlossener App / gesperrtem Handy) und hält die Athan-Aufnahmen bereit.
 // Speicher: ein KV-Namespace (Bindung ATHAN). Keine Datenbank nötig.
-import { cleanSettings, cleanSubscription, subId, messagesFor, httpError, isAudio, barkPayload, BARK_URL, testData } from '../server/core.mjs';
+import { cleanSettings, cleanSubscription, subId, messagesFor, httpError, isAudio, barkPayload, BARK_URL, testData, widgetSettings } from '../server/core.mjs';
 import catalog from '../web/muezzins.json' with { type: 'json' };
 import appConfig from '../web/config.json' with { type: 'json' };
 import { generateVapidKeys, sendPush } from './webpush.js';
@@ -72,6 +72,15 @@ async function api(req, env, url) {
     if (req.method !== 'GET') return json({ error: 'GET erwartet' }, 405);
     const v = await getVapid(env);
     return json({ push: true, audio: true, vapidPublicKey: v.publicKey });
+  }
+  if (p === '/api/widget') {
+    // iPhone-Widget fragt stündlich Ort und Berechnung ab – Schlüssel = Kennung des Push-Abos (nicht erratbar)
+    if (req.method !== 'GET') return json({ error: 'GET erwartet' }, 405);
+    const id = url.searchParams.get('id') || '';
+    if (!/^[0-9a-f]{32}$/.test(id)) return json({ error: 'Kennung ungültig' }, 400);
+    const s = (await loadSubs(env)).find((x) => x.id === id);
+    if (!s) return json({ error: 'Unbekannt' }, 404);
+    return json(widgetSettings(s.settings));
   }
   if (req.method !== 'POST') return json({ error: 'POST erwartet' }, 405);
   const origin = req.headers.get('origin');

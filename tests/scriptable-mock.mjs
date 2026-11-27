@@ -59,7 +59,7 @@ class WidgetDate extends WidgetText {
   applyTimerStyle() { this.style = 'timer'; } applyRelativeStyle() { this.style = 'relative'; } applyTimeStyle() { this.style = 'time'; }
   applyDateStyle() { this.style = 'date'; } applyOffsetStyle() { this.style = 'offset'; }
 }
-class WidgetImage extends Element { constructor(img) { super('image'); this.image = img; } }
+class WidgetImage extends Element { constructor(img) { super('image'); this.image = img; this.tintColor = null; } }
 class WidgetSpacer extends Element { constructor(len) { super('spacer'); this.length = len; } }
 class Container extends Element {
   children = []; spacing = 0; padding = null; backgroundColor = null; backgroundImage = null; backgroundGradient = null;
@@ -90,7 +90,7 @@ class ListWidget extends Container {
  * Widget-Code ausführen. code = Inhalt von web/widget/athan-widget.js (optional mit eingesetzter CONFIG).
  * Liefert { widget, presented, alert, logs }.
  */
-export async function run(code, { family = 'small', now = Date.now(), cfg, inApp = false, choose = 1, screen = [390, 844] } = {}) {
+export async function run(code, { family = 'small', now = Date.now(), cfg, inApp = false, choose = 1, screen = [390, 844], files = new Map(), net = null, iCloud = false } = {}) {
   if (cfg) code = code.replace(/\/\*CONFIG\*\/[\s\S]*?\/\*END\*\//, () => `/*CONFIG*/${JSON.stringify(cfg)}/*END*/`);
   const RealDate = globalThis.Date;
   class FakeDate extends RealDate {
@@ -101,8 +101,25 @@ export async function run(code, { family = 'small', now = Date.now(), cfg, inApp
   let lastWidget = null;
   class TrackedWidget extends ListWidget { constructor() { super(); lastWidget = this; } }
   const Alert = class { title = ''; message = ''; actions = []; addAction(a) { this.actions.push(a); } addCancelAction() {} presentSheet() { state.alert = this; return Promise.resolve(choose); } presentAlert() { return this.presentSheet(); } };
+  // Dateien (gemeinsam über mehrere Läufe, wenn files übergeben wird) und Internet (net(url) → Text oder Fehler)
+  const fmFor = (cloud) => ({
+    documentsDirectory: () => (cloud ? '/icloud/Documents' : '/local/Documents'),
+    joinPath: (a, b) => `${a}/${b}`,
+    fileExists: (p) => files.has(p),
+    readString: (p) => files.get(p),
+    writeString: (p, v) => { files.set(p, v); state.writes.push(p); },
+    isFileStoredIniCloud: (p) => p.startsWith('/icloud/'),
+  });
+  const FileManager = { local: () => fmFor(false), iCloud: () => fmFor(true) };
+  class Request {
+    constructor(url) { this.url = url; this.timeoutInterval = 60; state.requests.push(url); }
+    async loadString() { if (!net) throw new Error('offline'); return net(this.url); }
+    async loadJSON() { return JSON.parse(await this.loadString()); }
+  }
+  state.writes = []; state.requests = [];
   const env = {
     Color, Font, LinearGradient, Size, Point, Rect, Path, DrawContext, SFSymbol, ListWidget: TrackedWidget, Alert,
+    FileManager, Request, module: { filename: iCloud ? '/icloud/Documents/Athan.js' : '/local/Documents/Athan.js' },
     Device: { screenSize: () => new Size(...screen), screenScale: () => 3 },
     Script: { setWidget: (w) => { state.widget = w; }, complete: () => { state.completed = true; }, name: () => 'Athan' },
     config: { runsInWidget: !inApp, runsInApp: inApp, runsInAccessoryWidget: family.startsWith('accessory'), widgetFamily: inApp ? null : family },
@@ -113,6 +130,7 @@ export async function run(code, { family = 'small', now = Date.now(), cfg, inApp
   const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
   await new AsyncFunction(...Object.keys(env), code)(...Object.values(env));
   if (inApp) { state.widget = lastWidget; state.presented = lastWidget?.presented; }
+  state.files = files;
   return state;
 }
 

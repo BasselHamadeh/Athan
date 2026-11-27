@@ -7,7 +7,7 @@ import { specialDay, hijriParts, moonPhaseName } from './hijri.js';
 import { initSky } from './sky.js';
 import { skyAt } from './palette.js';
 
-const VERSION = '1.3.5';
+const VERSION = '1.4.0';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -545,11 +545,24 @@ function renderSettings() {
 }
 
 // ---------------- iPhone-Widget ----------------
+// Das Widget übernimmt Ort und Einstellungen später selbst – über die Kennung des Push-Abos (nicht erratbar).
+let widgetLink = { server: '', id: '' };
 async function renderIphone() {
   const show = plat.isIOS && !plat.isDesktop;
-  $('#iphoneGroup').hidden = !show;
+  $('#widgetRow').hidden = !show;
   if (!show) return;
   loadWidgetTemplate();
+  try {
+    const info = await plat.detectServer();
+    if (!info?.push) { widgetLink = { server: '', id: '' }; return; }
+    const sub = await plat.currentPushSubscription().catch(() => null);
+    let id = '';
+    if (sub) {
+      const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(new URL(sub.endpoint).href));
+      id = [...new Uint8Array(h)].map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 32);
+    }
+    widgetLink = { server: location.origin, id };
+  } catch { /* ohne Verknüpfung: Widget rechnet mit dem eingebetteten Ort */ }
 }
 
 // Widget-Code (Scriptable): Vorlage vorab laden, damit das Kopieren direkt im Tippen passiert (iOS verlangt das)
@@ -561,12 +574,12 @@ async function loadWidgetTemplate() {
 }
 function widgetCode() {
   const l = S.location;
-  const cfg = { name: l.name, lat: l.lat, lon: l.lon, tz: tz(), calc: S.calc, clock: S.clock, hijriAdj: hijriAdj() };
+  const cfg = { name: l.name, lat: l.lat, lon: l.lon, tz: tz(), calc: S.calc, clock: S.clock, hijriAdj: hijriAdj(), ...(widgetLink.server ? widgetLink : {}) };
   return widgetTpl.replace(/\/\*CONFIG\*\/[\s\S]*?\/\*END\*\//, () => `/*CONFIG*/${JSON.stringify(cfg)}/*END*/`);
 }
 async function copyWidget() {
   if (!S.location) { toast('Wähle zuerst einen Ort'); return; }
-  const done = () => toast('Kopiert. Jetzt in Scriptable einfügen.', 4000);
+  const done = () => toast('Kopiert', 2000);
   if (!widgetTpl && window.ClipboardItem && navigator.clipboard?.write) {
     try { // Safari erlaubt hier nachgeladenen Inhalt
       await navigator.clipboard.write([new ClipboardItem({ 'text/plain': loadWidgetTemplate().then(() => new Blob([widgetCode()], { type: 'text/plain' })) })]);
@@ -578,7 +591,7 @@ async function copyWidget() {
   try { await navigator.clipboard.writeText(code); done(); }
   catch {
     const ta = $('#widgetCode'); ta.value = code; ta.hidden = false; ta.focus(); ta.select();
-    toast('Code ist markiert: tippe auf „Kopieren“.', 5000);
+    toast('Markiert – „Kopieren“ tippen', 4000);
   }
 }
 

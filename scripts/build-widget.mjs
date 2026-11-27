@@ -27,10 +27,10 @@ const version = /VERSION = '([\d.]+)'/.exec(read('web/js/app.js'))[1];
 const out = [
   `// Athan-Widget für Scriptable (iPhone) – Version ${version}`,
   '// https://github.com/BasselHamadeh/Athan · keine Werbung, kein Tracking, rechnet ohne Internet.',
-  '// Den Code bitte nicht von Hand ändern: In der Athan-App unter Einstellungen → iPhone → „Widget-Code kopieren“',
-  '// bekommst du ihn mit deinem Ort und deinen Einstellungen.',
+  '// Aktualisiert sich selbst und übernimmt Ort und Einstellungen aus der Athan-App.',
   '',
   `const CONFIG = /*CONFIG*/${JSON.stringify({ name: '', lat: null, lon: null, tz: '', calc: { method: 'MWL', asr: 'standard', highLat: 'angle', adjust: {} }, clock: '24', hijriAdj: 0 })}/*END*/;`,
+  `const WIDGET_VERSION = '${version}';`,
   '',
   ...MODULES.map(wrap),
   ...MODULES.map((m) => `const { ${USE[m].join(', ')} } = M_${m};`),

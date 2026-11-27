@@ -284,8 +284,8 @@ table.month { width: 100%; border-collapse: collapse; font-variant-numeric: tabu
 /* Einstellungen */
 .settings { display: grid; gap: 14px; margin-top: 12px; }
 @media (min-width: 900px) {
-  .settings { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto auto 1fr auto auto; grid-template-areas: "loc voice" "notify voice" "iphone voice" "more more" "about about"; gap: 18px 40px; align-items: start; }
-  .g-loc { grid-area: loc; } .g-notify { grid-area: notify; } .g-iphone { grid-area: iphone; } .g-voice { grid-area: voice; } .g-more { grid-area: more; } .g-about { grid-area: about; }
+  .settings { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto 1fr auto auto; grid-template-areas: "loc voice" "notify voice" "more more" "about about"; gap: 18px 40px; align-items: start; }
+  .g-loc { grid-area: loc; } .g-notify { grid-area: notify; } .g-voice { grid-area: voice; } .g-more { grid-area: more; } .g-about { grid-area: about; }
 }
 .group { padding: 4px 0 18px; border-bottom: 1px solid var(--gold-line); }
 .group h3 { margin: 6px 0 10px; font: 500 var(--s1) var(--serif); color: var(--gold); }
@@ -310,15 +310,6 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--iznik); }
 .search, .inline-form { display: flex; gap: 8px; flex-wrap: wrap; }
 .inline-form input { flex: 1 1 220px; min-width: 0; }
 
-/* iPhone: Schritt-für-Schritt (echte Reihenfolge, daher nummeriert) */
-.steps { margin: 0 0 12px; padding: 0; list-style: none; counter-reset: step; }
-.steps li { position: relative; padding: 6px 0 6px 34px; counter-increment: step; color: var(--parchment-2); font-size: .92rem; line-height: 1.45; }
-.steps li::before {
-  content: counter(step); position: absolute; left: 0; top: 5px; width: 22px; height: 22px; border-radius: 50%;
-  display: grid; place-items: center; font: 600 .75rem/1 var(--sans); color: var(--gold); border: 1px solid var(--gold-soft);
-}
-.steps .btn { margin-top: -2px; }
-.mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .85em; color: var(--parchment); }
 .widget-code { width: 100%; height: 120px; margin-top: 8px; padding: 8px; border-radius: var(--r-sm); border: 1px solid var(--gold-line); background: rgba(7, 20, 48, .6); color: var(--parchment-2); font: .72rem/1.4 ui-monospace, Menlo, monospace; }
 .search input { flex: 1 1 200px; }
 .results { list-style: none; margin: 8px 0 0; padding: 0; }
@@ -417,4 +408,3 @@ details.more[open] > summary::after { transform: rotate(-135deg); }
   .month tr.today td { background: #eee; }
   .sub { color: #333; }
 }
-#barkStatus { margin-top: 10px; }
