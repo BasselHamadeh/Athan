@@ -106,9 +106,12 @@ fname = cab[o:cab.index(b'\0', o)].decode()
 o = cstart; out = b''; hist = b''
 for i in range(ndata):
     csum, cb_, cu = struct.unpack_from('<IHH', cab, o); blk = cab[o+8:o+8+cb_]; o += 8 + cb_
-    assert blk[:2] == b'CK'
-    dobj = zlib.decompressobj(-15, zdict=hist[-32768:]) if hist else zlib.decompressobj(-15)
-    u = dobj.decompress(blk[2:]); assert len(u) == cu, 'Blockgröße'
+    if comp == 0: u = blk
+    else:
+        assert blk[:2] == b'CK'
+        dobj = zlib.decompressobj(-15, zdict=hist[-32768:]) if hist else zlib.decompressobj(-15)
+        u = dobj.decompress(blk[2:])
+    assert len(u) == cu, 'Blockgröße'
     out += u; hist += u
-print(f'\nCAB: Datei "{fname}" {size} Bytes, {ndata} MSZIP-Blöcke, entpackt {len(out)} Bytes')
+print(f'\nCAB: Datei "{fname}" {size} Bytes, {ndata} Blöcke ({"MSZIP" if comp else "unkomprimiert"}), entpackt {len(out)} Bytes')
 if exe is not None: print('Identisch mit EXE:', out == exe)

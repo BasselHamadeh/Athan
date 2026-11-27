@@ -27,7 +27,7 @@ import (
 const upgradeCode = "{6B1D3A54-2F0E-4C8B-9A61-7E35C2D4A9F1}"
 
 var (
-	cabMode = "fixed"
+	cabMode = "none"
 	cabCsum = true
 )
 
@@ -35,7 +35,7 @@ func main() {
 	exe := flag.String("exe", "Athan.exe", "Programmdatei")
 	ver := flag.String("version", "1.0.0", "Version (x.y.z)")
 	out := flag.String("out", "Athan-Setup.msi", "Ausgabe")
-	flag.StringVar(&cabMode, "cabmode", "fixed", "CAB-Kompression: fixed | flate | stored | none")
+	flag.StringVar(&cabMode, "cabmode", "none", "CAB-Kompression: fixed | flate | stored | none")
 	flag.BoolVar(&cabCsum, "csum", true, "CAB-Prüfsummen berechnen")
 	cabOut := flag.String("cabout", "", "nur das CAB schreiben (Diagnose)")
 	flag.Parse()
