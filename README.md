@@ -95,7 +95,7 @@ Voraussetzung: Go ≥ 1.22 (für die Tests zusätzlich Node.js ≥ 18).
 VERSION=1.0.0 ./build.sh      # → dist/Athan.exe, dist/Athan-Setup-1.0.0.msi
 ```
 
-Die MSI entsteht ohne WiX mit `tools/mkmsi` (eigener MSI-Erzeuger in Go). Wer lieber das offizielle WiX-Toolset nutzt: `installer/athan.wxs`. Der Workflow `.github/workflows/build.yml` baut bei jedem Tag `v*` beide MSIs auf Windows, **installiert und deinstalliert sie testweise** und hängt sie an ein Release.
+Die MSI entsteht ohne WiX mit `tools/mkmsi` (eigener MSI-Erzeuger in Go). Wer lieber das offizielle WiX-Toolset nutzt: `installer/athan.wxs`. Der Workflow `.github/workflows/build.yml` baut bei jedem Push auf `main` die MSI auf Windows, **installiert und deinstalliert sie testweise** und stellt sie als Release bereit.
 
 Tests:
 
