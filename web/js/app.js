@@ -401,6 +401,7 @@ function renderQibla() {
   $('#qiblaPlace').textContent = `Von ${S.location.name} zur Kaaba in Mekka`;
   $('#qiblaDeg').textContent = b.toLocaleString('de-DE', { maximumFractionDigits: 1, minimumFractionDigits: 1 });
   $('#qiblaDist').textContent = `${Math.round(km).toLocaleString('de-DE')} km Luftlinie`;
+  $('#qiblaSub').textContent = `von Norden im Uhrzeigersinn, Richtung ${WINDS[Math.round(b / 22.5) % 16]}`;
   const rad = (b * Math.PI) / 180, s = Math.sin(rad), c = -Math.cos(rad);
   const x = 160 + 104 * s, y = 160 + 104 * c;
   $('#qiblaPointer').innerHTML = `
@@ -413,10 +414,14 @@ function renderQibla() {
   Compass.update();
 }
 
+const WINDS = ['Nord', 'Nordnordost', 'Nordost', 'Ostnordost', 'Ost', 'Ostsüdost', 'Südost', 'Südsüdost', 'Süd', 'Südsüdwest', 'Südwest', 'Westsüdwest', 'West', 'Westnordwest', 'Nordwest', 'Nordnordwest'];
+
 // Kompass startet von selbst. Das iPhone verlangt einmalig eine Erlaubnis – sie wird beim Tippen
 // auf „Qibla“ angefragt (dafür braucht iOS eine Berührung).
 const Compass = {
-  needsPerm: typeof window.DeviceOrientationEvent?.requestPermission === 'function',
+  // Erlaubnis nur auf Handys/Tablets nötig (Touch); ein PC hat keinen Kompass
+  needsPerm: typeof window.DeviceOrientationEvent?.requestPermission === 'function' && navigator.maxTouchPoints > 0,
+  noSensor: plat.isDesktop && navigator.maxTouchPoints === 0,
   listening: false, got: false, denied: false, smooth: null, heading: null, acc: null, rot: 0, buzz: false, timer: 0,
   listen() {
     if (this.listening || !window.DeviceOrientationEvent) return;
@@ -475,6 +480,7 @@ const Compass = {
   status(initial = false) {
     const btn = $('#compassBtn'), st = $('#qiblaStatus');
     if (this.got) { btn.hidden = true; return; }
+    if (this.noSensor) { btn.hidden = true; st.textContent = 'Dein Computer hat keinen Kompass. Richte dich nach der Gradzahl oder der Himmelsrichtung.'; return; }
     if (initial && !this.denied) { btn.hidden = true; st.textContent = 'Kompass wird gesucht …'; return; }
     if (this.needsPerm) {
       btn.hidden = false;
