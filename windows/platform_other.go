@@ -31,15 +31,19 @@ func (p *devPlatform) Run(app *App) {
 func (p *devPlatform) Notify(title, body string, silent bool) {
 	log.Printf("[Benachrichtigung] %s – %s (leise=%v)", title, body, silent)
 }
-func (p *devPlatform) Play(file string, volume float64, done func()) error {
+func (p *devPlatform) Play(file string, volume float64, limit time.Duration, done func()) error {
 	if os.Getenv("ATHAN_DEV_PLAY_FAIL") == "1" {
 		return errors.New("simuliert: kein Audiogerät")
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	log.Printf("[Wiedergabe] %s (Lautstärke %.0f%%)", file, volume*100)
+	d := 20 * time.Second
+	if limit > 0 && limit < d {
+		d = limit
+	}
+	log.Printf("[Wiedergabe] %s (Lautstärke %.0f%%, Dauer %s)", file, volume*100, d)
 	p.done = done
-	p.timer = time.AfterFunc(20*time.Second, func() { p.Stop() })
+	p.timer = time.AfterFunc(d, func() { p.Stop() })
 	return nil
 }
 func (p *devPlatform) Stop() {

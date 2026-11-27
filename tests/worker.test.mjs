@@ -62,7 +62,7 @@ const w = env.ATHAN.writes;
 r = await (await post('/api/subscribe', { subscription, settings })).json();
 ok('Unverändertes Abo schreibt nicht erneut', r.unchanged === true && env.ATHAN.writes === w);
 
-// 4) Planer: genau zur Gebetsminute (Freitag, 27.11.2026 → Dhuhr = Jumu’a)
+// 4) Planer: genau zur Gebetsminute (Freitag, 27.11.2026 – heißt trotzdem Dhuhr)
 const t = computeDay({ y: 2026, m: 11, d: 27 }, berlin, { method: 'MWL' });
 let res = await runMinute(t.dhuhr - 60000, env);
 ok('Eine Minute vorher: nichts', res.sent === 0);
@@ -70,7 +70,7 @@ res = await runMinute(t.dhuhr + 7000, env);
 await new Promise((r) => setTimeout(r, 100));
 const jum = inbox.find((x) => x.msg?.prayer === 'dhuhr');
 ok('Push zur Dhuhr-Minute', res.sent === 1 && !!jum, jum?.msg.title);
-ok('Freitag als Jumu’a', jum?.msg.title.includes('Jumu’a'));
+ok('Freitag heißt Dhuhr (nicht Jumu’a)', jum?.msg.title === 'Zeit für Dhuhr (الظهر)', jum?.msg.title);
 ok('Athan-Kennzeichen gesetzt', jum?.msg.athan === true);
 ok('VAPID-Kopf vorhanden', /^vapid t=[\w-]+\.[\w-]+\.[\w-]+, k=/.test(jum?.authz || ''));
 res = await runMinute(t.asr - 10 * 60000, env);
@@ -138,6 +138,60 @@ ok('Range 4000- → 206', a.status === 206 && a.headers.get('content-range') ===
 ok('Quelle nur einmal geladen', audioFetches === 1, String(audioFetches));
 ok('Unbekannte Stimme → 404', (await call('/audio/gibtsnicht')).status === 404);
 globalThis.fetch = realFetch;
+
+// 9) iPhone mit Bark: Athan als Mitteilungston (soundUrl), Ersatz über Web-Push
+{
+  const bark = [];
+  let barkOk = true;
+  globalThis.fetch = async (u, o) => {
+    if (String(u) === 'https://api.day.app/push') {
+      bark.push(JSON.parse(o.body));
+      return barkOk ? Response.json({ code: 200, message: 'success' }) : Response.json({ code: 400, message: 'failed to get device token' }, { status: 400 });
+    }
+    return realFetch(u, o);
+  };
+  const ep2 = endpoint.replace('/abc', '/bark');
+  const sub2 = { ...subscription, endpoint: ep2 };
+  const key = 'ynJ5Ft4atkMkWeo2PAvFhF';
+  const st = { ...settings, pre: 10, sound: { fajr: 'makkah_fajr', other: 'abdulbaset' }, bark: { key, critical: false } };
+  ok('Abo mit Bark angelegt', (await post('/api/subscribe', { subscription: sub2, settings: st })).status === 200);
+  const saved = (await env.ATHAN.get('subs', 'json')).find((x) => x.subscription.endpoint === ep2);
+  ok('Bark-Schlüssel gespeichert', saved?.settings.bark?.key === key && saved.settings.sound.other === 'abdulbaset');
+  // nur dieses Abo betrachten
+  const all = await env.ATHAN.get('subs', 'json');
+  await env.ATHAN.put('subs', JSON.stringify(all.filter((x) => x.subscription.endpoint === ep2)));
+  const pushes = inbox.length;
+  let rr = await runMinute(t.dhuhr, env);
+  const d = bark.at(-1);
+  ok('Dhuhr über Bark', rr.sent === 1 && bark.length === 1 && inbox.length === pushes, d?.title);
+  ok('Bark: Athan-Ton als soundUrl', d?.soundUrl === 'https://athan.basselhamadeh3.workers.dev/sounds/abdulbaset.caf' && d.sound === 'bell');
+  ok('Bark: zeitkritisch, Gruppe, Symbol', d?.level === 'timeSensitive' && d.group === 'Athan' && d.icon.endsWith('/icons/icon-192.png') && d.device_key === key);
+  const tf = computeDay({ y: 2026, m: 11, d: 28 }, berlin, { method: 'MWL' });
+  await runMinute(tf.fajr, env);
+  ok('Fajr mit Fajr-Stimme', bark.at(-1)?.soundUrl.endsWith('/sounds/makkah_fajr.caf'), bark.at(-1)?.soundUrl);
+  await runMinute(t.asr - 10 * 60000, env);
+  ok('Erinnerung ohne Athan-Ton', bark.at(-1)?.title === 'Asr in 10 Minuten' && !bark.at(-1).soundUrl && bark.at(-1).level === 'active');
+  await runMinute(t.asr, env);
+  ok('Nur Hinweis: ohne Athan-Ton', bark.at(-1)?.title.startsWith('Zeit für Asr') && !bark.at(-1).soundUrl);
+  // Test-Knopf → Bark mit Athan-Ton
+  const tr = await (await post('/api/test', { endpoint: ep2 })).json();
+  ok('Test über Bark mit Athan-Ton', tr.via === 'bark' && bark.at(-1)?.soundUrl?.endsWith('/abdulbaset.caf') && bark.at(-1).title === 'Athan – Test ✓');
+  // auch bei Lautlos (kritischer Hinweis)
+  await post('/api/subscribe', { subscription: sub2, settings: { ...st, bark: { key, critical: true } } });
+  await runMinute(t.maghrib, env);
+  ok('Kritisch: läutet auch bei Lautlos', bark.at(-1)?.level === 'critical' && bark.at(-1).volume === 8);
+  // Bark lehnt ab → Web-Push als Ersatz
+  barkOk = false;
+  const before = inbox.length;
+  await runMinute(t.isha, env);
+  await new Promise((r) => setTimeout(r, 100));
+  ok('Bark-Fehler → Web-Push', inbox.length === before + 1 && inbox.at(-1).msg.prayer === 'isha');
+  barkOk = true;
+  // ungültiger Schlüssel wird verworfen
+  await post('/api/subscribe', { subscription: sub2, settings: { ...st, bark: { key: 'https://evil.example/x' } } });
+  ok('Ungültiger Bark-Schlüssel verworfen', (await env.ATHAN.get('subs', 'json')).find((x) => x.subscription.endpoint === ep2)?.settings.bark === null);
+  globalThis.fetch = realFetch;
+}
 
 mock.close();
 console.log(failed ? `\n${failed} Test(s) fehlgeschlagen` : '\nAlle Worker-Tests bestanden');

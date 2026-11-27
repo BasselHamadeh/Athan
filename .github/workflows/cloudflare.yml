@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['web/**', 'cloudflare/**', 'server/core.mjs', '.github/workflows/cloudflare.yml']
+    paths: ['web/**', 'cloudflare/**', 'server/core.mjs', 'widget/**', 'scripts/**', '.github/workflows/cloudflare.yml']
 
 permissions:
   contents: read
@@ -42,7 +42,18 @@ jobs:
 
       - name: Tests
         if: steps.check.outputs.skip != '1'
-        run: node tests/worker.test.mjs
+        run: |
+          node tests/worker.test.mjs
+          node tests/widget.test.mjs
+
+      # Athan-Töne fürs iPhone (Bark): die ersten Verse jeder Stimme als .caf – werden mit veröffentlicht
+      - name: ffmpeg
+        if: steps.check.outputs.skip != '1'
+        run: command -v ffmpeg || (sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg)
+      - name: iPhone-Töne erzeugen
+        if: steps.check.outputs.skip != '1'
+        continue-on-error: true   # Quelle kurz weg? Dann spielt Bark ersatzweise seinen Ton – Veröffentlichen geht weiter
+        run: node scripts/athan-sounds.mjs --out web/sounds
 
       - name: Speicher (KV) anlegen oder finden
         if: steps.check.outputs.skip != '1'
@@ -88,3 +99,5 @@ jobs:
           done
           curl -fsS -o /dev/null -w "Startseite %{http_code}\n" "$URL/"
           curl -fsS -r 0-15 -o /dev/null -w "Audio %{http_code} %{content_type}\n" "$URL/audio/makkah_mulla"
+          curl -fsS "$URL/sounds/makkah_mulla.caf" | head -c 4 | grep -q caff && echo "iPhone-Ton ✓"
+          curl -fsS "$URL/widget/athan-widget.js" | grep -q "Athan-Widget für Scriptable" && echo "Widget-Code ✓"

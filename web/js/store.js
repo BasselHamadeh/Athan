@@ -16,7 +16,17 @@ export const DEFAULTS = {
   clock: '24',
   openOnAthan: false,        // nur Windows
   hijriAdj: 0,               // Hidschri-Datum: -1, 0, +1 Tag
+  athanLength: 'full',       // 'full' = ganzer Athan, 'short' = die ersten Verse (bis zur Atempause vor 30 s)
+  bark: { key: '', critical: false }, // iPhone: Athan-Ton bei gesperrtem Bildschirm über die App Bark
 };
+
+/** Bark-Schlüssel aus einem eingefügten Link oder dem Schlüssel selbst ('' = ungültig). */
+export function barkKey(input) {
+  const s = String(input || '').trim();
+  if (/^[A-Za-z0-9]{8,64}$/.test(s)) return s;
+  const m = /^https:\/\/api\.day\.app\/([A-Za-z0-9]{8,64})(?:[/?#]|$)/.exec(s);
+  return m ? m[1] : '';
+}
 
 function merge(base, over) {
   if (!over || typeof over !== 'object' || Array.isArray(over)) return structuredClone(base);
@@ -39,6 +49,8 @@ export function sanitize(s) {
   o.volume = Math.min(1, Math.max(0, +o.volume || 0));
   o.pre = [0, 5, 10, 15, 20, 30].includes(+o.pre) ? +o.pre : 0;
   o.hijriAdj = [-1, 0, 1].includes(+o.hijriAdj) ? +o.hijriAdj : 0;
+  o.athanLength = o.athanLength === 'short' ? 'short' : 'full';
+  o.bark = { key: barkKey(o.bark?.key), critical: o.bark?.critical === true };
   for (const k of Object.keys(DEFAULTS.modes)) if (!['athan', 'notify', 'off'].includes(o.modes[k])) o.modes[k] = DEFAULTS.modes[k];
   for (const k of Object.keys(DEFAULT_CALC.adjust)) o.calc.adjust[k] = Math.max(-60, Math.min(60, Math.round(+o.calc.adjust[k] || 0)));
   return o;

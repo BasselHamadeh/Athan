@@ -3,7 +3,7 @@
 import { upcomingEvents, isValidTimeZone, METHODS, PRAYERS } from '../web/js/praytimes.js';
 
 export const INFO = {
-  fajr: ['Fajr', 'الفجر'], sunrise: ['Shuruq', 'الشروق'], dhuhr: ['Dhuhr', 'الظهر'], jumua: ['Jumu’a', 'الجمعة'],
+  fajr: ['Fajr', 'الفجر'], sunrise: ['Shuruq', 'الشروق'], dhuhr: ['Dhuhr', 'الظهر'],
   asr: ['Asr', 'العصر'], maghrib: ['Maghrib', 'المغرب'], isha: ['Isha', 'العشاء'],
 };
 
@@ -48,11 +48,35 @@ export function cleanSettings(s) {
     custom: { fajr: numIn(c.custom?.fajr, 5, 25, 18), isha: numIn(c.custom?.isha, 5, 25, 17), ishaMin: numIn(c.custom?.ishaMin, 0, 180, 0), maghribMin: numIn(c.custom?.maghribMin, 0, 60, 0) },
   };
   const modes = Object.fromEntries(PRAYERS.map((k) => [k, ['athan', 'notify', 'off'].includes(s.modes?.[k]) ? s.modes[k] : 'off']));
+  const soundId = (v) => (typeof v === 'string' && /^[a-z0-9_]{1,40}$/.test(v) ? v : 'makkah_mulla');
+  const barkKey = typeof s.bark?.key === 'string' && /^[A-Za-z0-9]{8,64}$/.test(s.bark.key) ? s.bark.key : '';
   return {
     location: { name: String(l.name || '').replace(/[\u0000-\u001f<>]/g, '').slice(0, 80), lat, lon, tz },
     calc, modes, pre: [0, 5, 10, 15, 20, 30].includes(+s.pre) ? +s.pre : 0, clock: s.clock === '12' ? '12' : '24',
     hijriAdj: [-1, 0, 1].includes(+s.hijriAdj) ? +s.hijriAdj : 0,
+    sound: { fajr: soundId(s.sound?.fajr), other: soundId(s.sound?.other) },
+    bark: barkKey ? { key: barkKey, critical: s.bark.critical === true } : null,
   };
+}
+
+// iPhone: Bark (kostenlose App) spielt den Athan als Mitteilungston – auch bei gesperrtem Bildschirm.
+// iOS erlaubt dafür höchstens 30 s, darum die ersten Verse als .caf (siehe scripts/athan-sounds.mjs).
+export const BARK_URL = 'https://api.day.app/push';
+export function barkPayload(settings, data, origin) {
+  const b = settings.bark;
+  const athan = data.athan === true || data.sound === true;
+  const voice = data.prayer === 'fajr' ? settings.sound?.fajr : settings.sound?.other;
+  const p = {
+    device_key: b.key, title: data.title, body: data.body, group: 'Athan',
+    icon: `${origin}/icons/icon-192.png`, id: String(data.tag || Date.now()),
+    level: athan ? (b.critical ? 'critical' : 'timeSensitive') : (data.prayer ? 'timeSensitive' : 'active'),
+  };
+  if (athan) {
+    p.soundUrl = `${origin}/sounds/${/^[a-z0-9_]{1,40}$/.test(voice || '') ? voice : 'makkah_mulla'}.caf`;
+    p.sound = 'bell'; // falls der Athan-Ton nicht geladen werden kann
+    if (b.critical) p.volume = 8;
+  }
+  return p;
 }
 
 export async function subId(endpoint) {
@@ -67,13 +91,6 @@ export function fmtTime(epoch, tz, clock) {
   if (!f) { f = new Intl.DateTimeFormat('de-DE', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: clock === '12' ? 'h12' : 'h23' }); fmtCache.set(k, f); }
   return f.format(epoch);
 }
-const wdCache = new Map();
-function isFriday(epoch, tz) {
-  let f = wdCache.get(tz);
-  if (!f) { f = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short' }); wdCache.set(tz, f); }
-  return f.format(epoch) === 'Fri';
-}
-
 const hijriCache = new Map();
 function hijriMonth(epoch, tz, adj) {
   let f = hijriCache.get(tz);
@@ -93,8 +110,7 @@ export function messagesFor(settings, from, to) {
   for (const e of events) {
     const mode = modes[e.prayer];
     if (!mode || mode === 'off') continue;
-    const kind = e.prayer === 'dhuhr' && isFriday(e.at, location.tz) ? 'jumua' : e.prayer;
-    const [name, ar] = INFO[kind];
+    const [name, ar] = INFO[e.prayer]; // freitags ebenfalls „Dhuhr“
     const when = fmtTime(e.at, location.tz, clock);
     if (e.at > from && e.at <= to) {
       const ramadan = (e.prayer === 'maghrib' || e.prayer === 'fajr') && hijriMonth(e.at, location.tz, settings.hijriAdj) === 9;

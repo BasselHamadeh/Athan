@@ -84,18 +84,21 @@ export async function syncPush(settings) {
     if (cur && (cur.length !== key.length || cur.some((v, i) => v !== key[i]))) { await sub.unsubscribe(); sub = null; }
   }
   if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
-  const { location, calc, modes, pre, clock, hijriAdj } = settings;
+  const { location, calc, modes, pre, clock, hijriAdj, sound } = settings;
+  const bark = settings.bark?.key ? settings.bark : null; // iPhone: Athan-Ton über Bark
   const r = await fetch('api/subscribe', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ subscription: sub.toJSON(), settings: { location, calc, modes, pre, clock, hijriAdj } }),
+    body: JSON.stringify({ subscription: sub.toJSON(), settings: { location, calc, modes, pre, clock, hijriAdj, sound, bark } }),
   });
   if (!r.ok) throw new Error('Server lehnte das Abo ab (' + r.status + ')');
   return { ok: true };
 }
 
+/** Test über den Server. Antwort: { ok, via: 'bark' | 'push', scheduled } */
 export async function testPush(delay = 0) {
   const sub = await currentPushSubscription();
   if (!sub) return false;
   const r = await fetch('api/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: sub.endpoint, delay }) });
-  return r.ok;
+  if (!r.ok) return false;
+  return (await r.json().catch(() => ({}))) || {};
 }

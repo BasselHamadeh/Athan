@@ -53,15 +53,17 @@ type Settings struct {
 	Pre         int               `json:"pre"`
 	Clock       string            `json:"clock"`
 	OpenOnAthan bool              `json:"openOnAthan"`
+	AthanLength string            `json:"athanLength"` // "short" = die ersten Verse
 }
 
 type Voice struct {
-	ID       string   `json:"id"`
-	Name     string   `json:"name"`
-	Place    string   `json:"place"`
-	Fajr     string   `json:"fajr"`
-	FajrOnly bool     `json:"fajrOnly"`
-	Src      []string `json:"src"`
+	ID       string    `json:"id"`
+	Name     string    `json:"name"`
+	Place    string    `json:"place"`
+	Fajr     string    `json:"fajr"`
+	FajrOnly bool      `json:"fajrOnly"`
+	Clip     []float64 `json:"clip"` // [Beginn der Stimme, Ende der ersten Verse] in Sekunden
+	Src      []string  `json:"src"`
 }
 
 type Playing struct {
@@ -92,7 +94,7 @@ type App struct {
 type Platform interface {
 	Run(app *App)
 	Notify(title, body string, silent bool)
-	Play(file string, volume float64, done func()) error
+	Play(file string, volume float64, limit time.Duration, done func()) error
 	Stop()
 	SetTooltip(s string)
 	OpenWindow(url string)
@@ -101,7 +103,7 @@ type Platform interface {
 }
 
 var prayerNames = map[string][2]string{
-	"fajr": {"Fajr", "الفجر"}, "sunrise": {"Shuruq", "الشروق"}, "dhuhr": {"Dhuhr", "الظهر"}, "jumua": {"Jumu’a", "الجمعة"},
+	"fajr": {"Fajr", "الفجر"}, "sunrise": {"Shuruq", "الشروق"}, "dhuhr": {"Dhuhr", "الظهر"},
 	"asr": {"Asr", "العصر"}, "maghrib": {"Maghrib", "المغرب"}, "isha": {"Isha", "العشاء"},
 }
 
@@ -446,11 +448,7 @@ func (a *App) scheduler() {
 }
 
 func (a *App) displayName(prayer string, at time.Time) (string, string) {
-	k := prayer
-	if prayer == "dhuhr" && at.Weekday() == time.Friday {
-		k = "jumua"
-	}
-	n := prayerNames[k]
+	n := prayerNames[prayer] // freitags ebenfalls „Dhuhr“
 	return n[0], n[1]
 }
 
@@ -559,9 +557,10 @@ func (a *App) playVoice(voice, prayer string, at time.Time) {
 	}
 	a.mu.Lock()
 	vol := a.s.Volume
+	limit := a.athanLimit(voice)
 	a.playing = &Playing{Prayer: prayer, Voice: voice, At: at.UnixMilli()}
 	a.mu.Unlock()
-	err := a.plat.Play(file, vol, func() {
+	err := a.plat.Play(file, vol, limit, func() {
 		a.mu.Lock()
 		a.playing = nil
 		a.mu.Unlock()
@@ -583,7 +582,23 @@ func (a *App) playVoice(voice, prayer string, at time.Time) {
 		})
 		return
 	}
-	log.Printf("Athan spielt: %s (%s)", voice, filepath.Base(file))
+	if limit > 0 {
+		log.Printf("Athan spielt: %s (%s), erste Verse bis %.1f s", voice, filepath.Base(file), limit.Seconds())
+	} else {
+		log.Printf("Athan spielt: %s (%s)", voice, filepath.Base(file))
+	}
+}
+
+// athanLimit: bei „Erste Verse“ bis zur Atempause vor 30 s (muezzins.json), eigene Aufnahme 30 s, Gong ganz.
+// Aufruf mit gesperrtem a.mu.
+func (a *App) athanLimit(voice string) time.Duration {
+	if a.s.AthanLength != "short" || voice == "chime" {
+		return 0
+	}
+	if v, ok := a.voices[voice]; ok && len(v.Clip) == 2 && v.Clip[1] > 1 {
+		return time.Duration(v.Clip[1] * float64(time.Second))
+	}
+	return 30 * time.Second
 }
 
 func (a *App) stop() {

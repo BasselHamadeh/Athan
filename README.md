@@ -6,7 +6,9 @@ Ohne Werbung, ohne Konto, ohne Tracking. Eine Oberfläche für drei Wege:
 |---|---|---|
 | Installation | `Athan-Setup-1.0.0.msi` doppelklicken | Web-App hosten → in Safari „Zum Home-Bildschirm“ |
 | Gebetszeiten, Monatsplan, Qibla | ✓ | ✓ (Live-Kompass mit Handy-Sensor) |
-| Athan zur Gebetszeit | ✓ auch bei geschlossenem Fenster (läuft im Infobereich) | ✓ solange die App geöffnet ist |
+| Athan zur Gebetszeit | ✓ auch bei geschlossenem Fenster (läuft im Infobereich) | ✓ bei geöffneter App; iPhone gesperrt: die ersten Verse über **Bark** |
+| Athan-Länge | ganz oder die ersten Verse | ganz oder die ersten Verse |
+| Widget | – | ✓ iPhone (Home- und Sperrbildschirm) über **Scriptable** |
 | Benachrichtigung | ✓ Windows-Benachrichtigung | ✓ bei geschlossener App **mit Push-Server** (siehe unten) |
 | Autostart | ✓ (abschaltbar) | – |
 
@@ -65,7 +67,28 @@ Der Node-Server (`server/`, keine Pakete) kann dasselbe auf einem VPS oder Raspb
 2. **Teilen** → **Zum Home-Bildschirm** → Hinzufügen.
 3. Athan **vom Home-Bildschirm** öffnen, Ort wählen, **Athan aktivieren** tippen und Benachrichtigungen erlauben.
 
-**Was iOS erlaubt – und was nicht:** Bei geschlossener App kommt die Benachrichtigung zur Gebetszeit mit dem iPhone-Standardton. Ein eigener Athan-Ton im Hintergrund ist für Web-Apps auf dem iPhone technisch gesperrt. Tippst du auf die Benachrichtigung, öffnet sich Athan direkt mit dem Athan-Bildschirm; ein Tipp spielt den Athan ab. Ist die App geöffnet, erklingt der Athan automatisch.
+**Was iOS erlaubt – und was nicht:** Web-Apps dürfen auf dem iPhone keinen eigenen Mitteilungston spielen; ohne Hilfe kommt die Mitteilung mit dem Standardton. Ist die App geöffnet, erklingt der Athan automatisch.
+
+### Athan-Ton bei gesperrtem iPhone (Bark)
+
+Die kostenlose, quelloffene App [Bark](https://apps.apple.com/app/id1403753865) (ohne Werbung, sammelt keine Daten) spielt eigene Mitteilungstöne. iOS erlaubt dafür höchstens 30 Sekunden – darum klingen dort **die ersten Verse** (bis zur Atempause vor 30 s, je Stimme ermittelt mit `scripts/athan-sounds.mjs`).
+
+1. Bark laden, öffnen, Mitteilungen erlauben.
+2. In Bark den Link mit deinem Schlüssel kopieren (`https://api.day.app/…`).
+3. In Athan: Einstellungen → iPhone → einfügen → Speichern. Es kommt sofort ein Test mit Athan-Ton.
+
+Optional „Auch wenn das iPhone lautlos ist“ (kritischer Hinweis, Bark fragt einmal nach der Erlaubnis). Klappt Bark einmal nicht, kommt die normale Mitteilung.
+
+### Widget (Scriptable)
+
+Alle Zeiten auf Home- und Sperrbildschirm – Fajr, Shuruq, Dhuhr, Asr, Maghrib, Isha, Qiyam (Beginn des letzten Nachtdrittels) – mit Countdown, Hidschri-Datum, Mondphase und dem Himmel der App. Rechnet auf dem iPhone ohne Internet.
+
+1. [Scriptable](https://apps.apple.com/app/id1405459188) laden (kostenlos, ohne Werbung).
+2. Athan: Einstellungen → iPhone → **Widget-Code kopieren**.
+3. Scriptable → `+` → einfügen → oben „Athan“ nennen → Fertig.
+4. Home-Bildschirm gedrückt halten → Bearbeiten → Widget hinzufügen → Scriptable → Größe wählen → Widget antippen → Script „Athan“.
+
+Der Code entsteht mit `node scripts/build-widget.mjs` aus derselben Engine wie die App (`web/widget/athan-widget.js`).
 
 Android (Chrome): genauso, „Zum Startbildschirm hinzufügen“ bzw. „App installieren“.
 
@@ -101,7 +124,9 @@ node tests/engine.test.mjs         # Gebetszeiten an Referenzorten
 cd windows && go test ./...        # Go-Engine = JS-Engine (7.140 Fälle)
 node tests/webpush.test.mjs        # Verschlüsselung = RFC-8291-Testvektor
 node tests/e2e-push.mjs            # Server → Push-Dienst → Entschlüsselung
-node tests/worker.test.mjs         # Cloudflare Worker: Planer, Sicherheit, Audio
+node tests/worker.test.mjs         # Cloudflare Worker: Planer, Sicherheit, Audio, Bark
+node tests/widget.test.mjs         # iPhone-Widget mit nachgebauter Scriptable-API
+node tests/widget-preview.mjs w.html   # Widget-Vorschau zum Ansehen
 python3 tests/msicheck.py dist/Athan-Setup-1.0.0.msi dist/Athan.exe   # MSI zurücklesen
 ```
 

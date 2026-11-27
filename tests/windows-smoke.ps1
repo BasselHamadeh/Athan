@@ -65,6 +65,21 @@ Invoke-RestMethod "$base/api/stop" -Method Post -Headers $h | Out-Null
 Start-Sleep 2
 Check 'Stopp funktioniert' ($null -eq (Invoke-RestMethod "$base/api/status" -Headers $h).playing)
 
+# „Erste Verse“: Athan endet an der Atempause (makkah_mulla: 27,7 s)
+$short = @{
+  location = @{ name = 'Testort'; lat = 25; lon = $f.lon; tz = 'UTC' }
+  calc = @{ method = 'MWL' }; voice = 'makkah_mulla'; fajrVoice = 'auto'; volume = 0.8; pre = 0; clock = '24'; athanLength = 'short'
+  modes = @{ fajr = 'athan'; sunrise = 'off'; dhuhr = 'athan'; asr = 'athan'; maghrib = 'athan'; isha = 'athan' }
+} | ConvertTo-Json -Depth 5
+Invoke-RestMethod "$base/api/settings" -Method Put -Headers $h -ContentType 'application/json' -Body $short | Out-Null
+Invoke-RestMethod "$base/api/test-athan" -Method Post -Headers $h | Out-Null
+Start-Sleep 3
+$log = Get-Content (Join-Path $env:LOCALAPPDATA 'Athan\athan.log') -Raw
+Check 'Erste Verse: kurzer Athan' ($log -match 'erste Verse bis 27\.7 s')
+Check 'Kurzer Athan läuft' ($null -ne (Invoke-RestMethod "$base/api/status" -Headers $h).playing)
+Start-Sleep 30
+Check 'Kurzer Athan endet von selbst' ($null -eq (Invoke-RestMethod "$base/api/status" -Headers $h).playing)
+
 # Sichtprüfung: Oberfläche mit Berlin als Ort im Edge-Fenster fotografieren
 $berlin = @{
   location = @{ name = 'Berlin'; region = 'Berlin'; country = 'Deutschland'; cc = 'DE'; lat = 52.52; lon = 13.405; tz = 'Europe/Berlin' }

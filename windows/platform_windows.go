@@ -10,9 +10,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 	"unsafe"
 )
 
@@ -173,6 +175,7 @@ type winPlatform struct {
 	qmu        sync.Mutex
 	playDone   func()
 	playing    bool
+	playGen    int
 	taskbarMsg uintptr
 }
 
@@ -315,7 +318,17 @@ func mci(cmd string, hwnd uintptr) error {
 	return nil
 }
 
-func (p *winPlatform) Play(file string, volume float64, done func()) error {
+// mciStatus liefert die Antwort eines MCI-Befehls (z. B. „status athan length“).
+func mciStatus(cmd string) string {
+	buf := make([]uint16, 128)
+	if r, _, _ := pMciSendStringW.Call(uintptr(unsafe.Pointer(u16(cmd))), uintptr(unsafe.Pointer(&buf[0])), 128, 0); r != 0 {
+		return ""
+	}
+	return syscall.UTF16ToString(buf)
+}
+
+// Play spielt eine Datei; limit > 0 = nur bis dahin („erste Verse“), mit sanftem Ausblenden.
+func (p *winPlatform) Play(file string, volume float64, limit time.Duration, done func()) error {
 	return p.onUI(func() error {
 		p.stopLocked()
 		if err := mci(fmt.Sprintf(`open "%s" type mpegvideo alias athan`, file), 0); err != nil {
@@ -324,11 +337,38 @@ func (p *winPlatform) Play(file string, volume float64, done func()) error {
 				return err
 			}
 		}
-		mci(fmt.Sprintf("setaudio athan volume to %d", int(volume*1000)), 0)
+		vol := int(volume * 1000)
+		mci(fmt.Sprintf("setaudio athan volume to %d", vol), 0)
+		mci("set athan time format milliseconds", 0)
+		cmd := "play athan notify"
+		if limit > 0 {
+			// nur kürzen, wenn die Aufnahme länger ist (sonst meldet MCI „außerhalb des Bereichs“)
+			if total, err := strconv.Atoi(strings.TrimSpace(mciStatus("status athan length"))); err == nil && total > int(limit.Milliseconds())+300 {
+				cmd = fmt.Sprintf("play athan from 0 to %d notify", limit.Milliseconds())
+			} else {
+				limit = 0
+			}
+		}
+		p.playGen++
+		gen := p.playGen
 		p.playDone, p.playing = done, true
-		if err := mci("play athan notify", p.hwnd); err != nil {
+		if err := mci(cmd, p.hwnd); err != nil {
 			p.stopLocked()
 			return err
+		}
+		if limit > 1500*time.Millisecond {
+			// letzte 1,2 s leiser werden lassen
+			for i := 1; i <= 12; i++ {
+				step := i
+				time.AfterFunc(limit-1200*time.Millisecond+time.Duration(step)*100*time.Millisecond, func() {
+					p.onUI(func() error {
+						if p.playing && p.playGen == gen {
+							mci(fmt.Sprintf("setaudio athan volume to %d", vol*(12-step)/12), 0)
+						}
+						return nil
+					})
+				})
+			}
 		}
 		return nil
 	})

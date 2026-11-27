@@ -1,8 +1,9 @@
 // Athan auf Cloudflare Workers (kostenlos): liefert die Web-App aus, verschickt jede Minute fällige
 // Push-Benachrichtigungen (auch bei geschlossener App / gesperrtem Handy) und hält die Athan-Aufnahmen bereit.
 // Speicher: ein KV-Namespace (Bindung ATHAN). Keine Datenbank nötig.
-import { cleanSettings, cleanSubscription, subId, messagesFor, httpError, isAudio } from '../server/core.mjs';
+import { cleanSettings, cleanSubscription, subId, messagesFor, httpError, isAudio, barkPayload, BARK_URL } from '../server/core.mjs';
 import catalog from '../web/muezzins.json' with { type: 'json' };
+import appConfig from '../web/config.json' with { type: 'json' };
 import { generateVapidKeys, sendPush } from './webpush.js';
 
 const MAX_SUBS = 1000;
@@ -36,9 +37,29 @@ async function readJSON(req, max = 16384) {
   try { return JSON.parse(text || '{}'); } catch { throw httpError(400, 'Kein gültiges JSON'); }
 }
 
+// Öffentliche Adresse (für die Athan-Töne, die Bark lädt)
+const publicOrigin = (env) => { try { return new URL(env.APP_URL || appConfig.appUrl).origin; } catch { return ''; } };
+
+async function sendBark(env, s, data) {
+  const r = await fetch(env.BARK_URL || BARK_URL, {
+    method: 'POST', headers: { 'Content-Type': 'application/json; charset=utf-8' },
+    body: JSON.stringify(barkPayload(s.settings, data, publicOrigin(env))), signal: AbortSignal.timeout(8000),
+  });
+  const j = await r.json().catch(() => ({}));
+  return { ok: r.ok && (j.code === undefined || j.code === 200), status: r.status, text: j.message || '' };
+}
+
+/** iPhone mit Bark: Mitteilung mit Athan-Ton über Bark; sonst (oder falls Bark scheitert) Web-Push. */
 async function deliver(env, vapid, s, data, ttl) {
+  if (s.settings.bark) {
+    try {
+      const r = await sendBark(env, s, data);
+      if (r.ok) return { status: 201, via: 'bark' };
+      console.log('Bark abgelehnt', r.status, r.text);
+    } catch (e) { console.log('Bark-Fehler', e.message); }
+  }
   try {
-    return await sendPush(s.subscription, data, vapid, subject(env), { ttl });
+    return { ...(await sendPush(s.subscription, data, vapid, subject(env), { ttl })), via: 'push' };
   } catch (e) {
     console.log('Push-Fehler', e.message);
     return { status: 0, text: e.message };
@@ -94,7 +115,7 @@ async function api(req, env, url) {
       return json({ scheduled: true, at: s.testAt });
     }
     const r = await deliver(env, await getVapid(env), s, testMessage(s), 120);
-    return json({ status: r.status }, r.status >= 200 && r.status < 300 ? 200 : 502);
+    return json({ status: r.status, via: r.via }, r.status >= 200 && r.status < 300 ? 200 : 502);
   }
   return json({ error: 'Unbekannt' }, 404);
 }
@@ -138,7 +159,11 @@ function ranged(req, buf, type) {
   });
 }
 
-const testMessage = (s) => ({ title: 'Athan – Test ✓', body: `Mitteilungen für ${s.settings.location.name} funktionieren – auch bei gesperrtem Handy.`, tag: 'test', url: './#einstellungen' });
+const testMessage = (s) => ({
+  title: 'Athan – Test ✓',
+  body: s.settings.bark ? `So klingt der Athan in ${s.settings.location.name} – auch bei gesperrtem iPhone.` : `Mitteilungen für ${s.settings.location.name} funktionieren – auch bei gesperrtem Handy.`,
+  tag: 'test-' + Date.now(), url: './#einstellungen', sound: true,
+});
 
 /** Läuft jede Minute: verschickt alle Benachrichtigungen, die genau in dieser Minute fällig sind. */
 export async function runMinute(scheduledTime, env) {

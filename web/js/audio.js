@@ -74,11 +74,31 @@ export class Player {
     this.chime = null;
     this.unlocked = false;
     this.listeners = new Set();
+    this.limit = 0;            // Sekunden; 0 = ganz abspielen
+    this.base = 0.9;
     this.el.addEventListener('ended', () => this._end());
+    this.el.addEventListener('timeupdate', () => this._checkLimit());
+  }
+
+  // „Erste Verse“: an der Atempause sanft ausblenden und anhalten (iOS kennt keine Lautstärke – dort nur anhalten)
+  _checkLimit() {
+    if (!this.limit || !this.current || this.current.id === 'chime') return;
+    const left = this.limit - this.el.currentTime;
+    if (left <= 0) { this.limit = 0; try { this.el.pause(); } catch {} this.el.volume = this.base; this._end(); return; }
+    if (left < 1.2 && !this._fade) {
+      this._fade = setInterval(() => {
+        const l = this.limit - this.el.currentTime;
+        if (!this.limit || l <= 0) { clearInterval(this._fade); this._fade = null; this._checkLimit(); return; }
+        try { this.el.volume = Math.max(0, this.base * (l / 1.2)); } catch {}
+      }, 50);
+    }
   }
   on(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
   _emit() { for (const fn of this.listeners) fn(this.current); }
-  _end() { this.current = null; this._emit(); }
+  _end() {
+    if (this._fade) { clearInterval(this._fade); this._fade = null; }
+    this.current = null; this._emit();
+  }
 
   async unlock() {
     if (this.unlocked) return true;
@@ -91,8 +111,10 @@ export class Player {
     return this.unlocked;
   }
 
-  async play(id, { volume = 0.9, kind = 'preview' } = {}) {
+  async play(id, { volume = 0.9, kind = 'preview', limit = 0 } = {}) {
     this.stop();
+    this.limit = limit > 0 ? limit : 0;
+    this.base = volume;
     this.current = { id, kind, loading: true }; this._emit();
     if (id === 'chime') {
       this.chime = playChime(volume);
@@ -120,7 +142,8 @@ export class Player {
 
   stop() {
     if (this.chime) { this.chime.stop(); this.chime = null; }
-    try { this.el.pause(); } catch {}
+    if (this._fade) { clearInterval(this._fade); this._fade = null; }
+    try { this.el.pause(); this.el.volume = this.base; } catch {}
     if (this.current) { this.current = null; this._emit(); }
   }
   get playing() { return !!this.current; }

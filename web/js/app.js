@@ -1,12 +1,13 @@
 import { computeDay, upcomingEvents, zonedParts, addDays, qiblaBearing, distanceToKaabaKm, sunAltitude, METHODS, PRAYERS, suggestMethod, isValidTimeZone } from './praytimes.js';
-import { loadLocal, saveLocal, sanitize, DEFAULTS } from './store.js';
+import { loadLocal, saveLocal, sanitize, DEFAULTS, barkKey } from './store.js';
 import { Player, saveCustom, loadCustom } from './audio.js';
 import * as plat from './platform.js';
 import { moonPosition, moonIllumination, moonLitPath, moonRotation } from './astro.js';
 import { specialDay, hijriParts, moonPhaseName } from './hijri.js';
 import { initSky } from './sky.js';
+import { skyAt } from './palette.js';
 
-const VERSION = '1.2.0';
+const VERSION = '1.3.0';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -15,7 +16,6 @@ const INFO = {
   fajr: { name: 'Fajr', ar: 'الفجر', de: 'Morgengebet' },
   sunrise: { name: 'Shuruq', ar: 'الشروق', de: 'Sonnenaufgang' },
   dhuhr: { name: 'Dhuhr', ar: 'الظهر', de: 'Mittagsgebet' },
-  jumua: { name: 'Jumu’a', ar: 'الجمعة', de: 'Freitagsgebet' },
   asr: { name: 'Asr', ar: 'العصر', de: 'Nachmittagsgebet' },
   maghrib: { name: 'Maghrib', ar: 'المغرب', de: 'Abendgebet' },
   isha: { name: 'Isha', ar: 'العشاء', de: 'Nachtgebet' },
@@ -48,13 +48,24 @@ function hijri(epoch, opts, locale = 'de') {
   try { return new Intl.DateTimeFormat(`${locale}-u-ca-islamic-umalqura-nu-latn`, { timeZone: tz(), ...opts }).format(epoch + hijriAdj() * 86400000); } catch { return ''; }
 }
 const isFriday = (date) => new Date(Date.UTC(date.y, date.m - 1, date.d)).getUTCDay() === 5;
-const label = (prayer, date) => (prayer === 'dhuhr' && date && isFriday(date) ? INFO.jumua : INFO[prayer]);
+const label = (prayer) => INFO[prayer]; // freitags ebenfalls „Dhuhr“
 const voiceById = (id) => voices.find((v) => v.id === id) || BUILTIN.find((v) => v.id === id) || (id === 'custom' ? { id: 'custom', name: 'Eigene Aufnahme' } : null);
 function voiceFor(prayer) {
   if (prayer !== 'fajr') return S.voice;
   if (S.fajrVoice && S.fajrVoice !== 'auto') return S.fajrVoice;
   return voiceById(S.voice)?.fajr || S.voice;
 }
+// „Erste Verse“: bis zur Atempause vor 30 s (aus muezzins.json), eigene Aufnahme 30 s, Gong immer ganz
+function athanLimit(id) {
+  if (S.athanLength !== 'short' || id === 'chime') return 0;
+  const clip = voices.find((x) => x.id === id)?.clip;
+  return clip ? clip[1] : 30;
+}
+const playAthan = (id) => player.play(id, { volume: S.volume, kind: 'athan', limit: athanLimit(id) });
+// Ton für Mitteilungen auf dem iPhone (Bark): eigene Aufnahme liegt nur auf dem Gerät → Standardstimme
+const soundFor = (prayer) => { const id = voiceFor(prayer); return id === 'custom' ? DEFAULTS.voice : id; };
+const pushSettings = () => ({ ...S, sound: { fajr: soundFor('fajr'), other: soundFor('dhuhr') } });
+
 function toast(msg, ms = 2600) {
   const t = $('#toast'); t.textContent = msg; t.hidden = false;
   clearTimeout(toast._t); toast._t = setTimeout(() => (t.hidden = true), ms);
@@ -76,54 +87,23 @@ function commit(change = {}) {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
     if (plat.isDesktop) { plat.api('/api/settings', { method: 'PUT', body: S }).catch(() => toast('Speichern in der Windows-App fehlgeschlagen')); }
-    else if (plat.notifPermission() === 'granted') { plat.syncPush(S).then(renderNotifyStatus).catch(() => {}); }
+    else if (plat.notifPermission() === 'granted') { plat.syncPush(pushSettings()).then(renderNotifyStatus).catch(() => {}); }
   }, 500);
 }
 
 // ---------------- Himmel ----------------
-// Zwei Farbverläufe nach Sonnenhöhe: Morgen (Fajr → Shuruq → Vormittag) und Abend (Asr → Maghrib → Isha).
-const NIGHT = { top: '#01040C', mid: '#030916', low: '#07112A', glow: [40, 60, 140, 0], stars: 1 };
-const NOON = { top: '#0C467E', mid: '#18659C', low: '#24709C', glow: [255, 245, 210, 0.10], stars: 0 };
-const MORNING = [
-  { a: -90, ...NIGHT },
-  { a: -18, top: '#030A1E', mid: '#081633', low: '#10244C', glow: [90, 80, 160, 0.08], stars: 0.95 },
-  { a: -12, top: '#0B1440', mid: '#1E225A', low: '#3A2F68', glow: [180, 120, 190, 0.22], stars: 0.6 },
-  { a: -5, top: '#141C52', mid: '#3A2F6A', low: '#6A4272', glow: [236, 150, 150, 0.32], stars: 0.2 },
-  { a: 2, top: '#1B2E66', mid: '#4A4A80', low: '#7A5068', glow: [250, 175, 120, 0.40], stars: 0 },
-  { a: 12, top: '#143C70', mid: '#2B5A8A', low: '#3F6A8A', glow: [255, 215, 150, 0.22], stars: 0 },
-  { a: 35, top: '#0E447A', mid: '#1B6296', low: '#2A6E98', glow: [255, 240, 200, 0.12], stars: 0 },
-  { a: 90, ...NOON },
-];
-const EVENING = [
-  { a: -90, ...NIGHT },
-  { a: -18, top: '#030A1E', mid: '#081633', low: '#10244C', glow: [60, 60, 140, 0.05], stars: 0.95 },
-  { a: -12, top: '#0D1336', mid: '#1E1D4E', low: '#2E2454', glow: [120, 70, 140, 0.14], stars: 0.6 },
-  { a: -6, top: '#171844', mid: '#3E2456', low: '#5A2A4A', glow: [200, 80, 90, 0.28], stars: 0.2 },
-  { a: 0, top: '#231F52', mid: '#6A3456', low: '#9A3E32', glow: [245, 110, 70, 0.42], stars: 0 },
-  { a: 8, top: '#1E3462', mid: '#5A4A6A', low: '#8A5040', glow: [250, 160, 90, 0.34], stars: 0 },
-  { a: 22, top: '#163E6C', mid: '#3A5C7E', low: '#7A6448', glow: [245, 200, 120, 0.24], stars: 0 },
-  { a: 35, top: '#0E447A', mid: '#1B6296', low: '#2A6E98', glow: [255, 240, 200, 0.12], stars: 0 },
-  { a: 90, ...NOON },
-];
-const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
-const lerp = (a, b, t) => a + (b - a) * t;
-const mixRGB = (h1, h2, t) => hex(h1).map((v, i) => Math.round(lerp(v, hex(h2)[i], t)));
 const rgb = (c) => `rgb(${c.join(',')})`;
 function paintSky(now, ctx) {
   const root = document.documentElement.style;
   if (!S.location || !ctx) { root.setProperty('--stars', 0.6); return; }
   const alt = sunAltitude(now, S.location.lat, S.location.lon);
   const evening = isFinite(ctx.t.dhuhr) ? now >= ctx.t.dhuhr || now < ctx.t.fajr - 6 * 3600000 : zonedParts(now, tz()).h >= 12;
-  const KF = evening ? EVENING : MORNING;
-  let i = KF.findIndex((k) => k.a >= alt); if (i <= 0) i = 1;
-  const a = KF[i - 1], b = KF[i], t = Math.min(1, Math.max(0, (alt - a.a) / (b.a - a.a)));
-  const top = mixRGB(a.top, b.top, t);
-  root.setProperty('--sky-top', rgb(top));
-  root.setProperty('--sky-mid', rgb(mixRGB(a.mid, b.mid, t)));
-  root.setProperty('--sky-low', rgb(mixRGB(a.low, b.low, t)));
-  const g = a.glow.map((v, k) => lerp(v, b.glow[k], t));
-  root.setProperty('--glow', `rgba(${g.slice(0, 3).map(Math.round).join(',')},${g[3].toFixed(3)})`);
-  root.setProperty('--stars', lerp(a.stars, b.stars, t).toFixed(2));
+  const c = skyAt(alt, evening);
+  root.setProperty('--sky-top', rgb(c.top));
+  root.setProperty('--sky-mid', rgb(c.mid));
+  root.setProperty('--sky-low', rgb(c.low));
+  root.setProperty('--glow', `rgba(${c.glow.slice(0, 3).map(Math.round).join(',')},${c.glow[3].toFixed(3)})`);
+  root.setProperty('--stars', c.stars.toFixed(2));
   // Lichtschein dort, wo die Sonne gerade steht (links morgens, rechts abends)
   const rise = ctx.t.sunrise, set = ctx.t.sunset;
   let fx = evening ? 0.9 : 0.1, fy = 0.34;
@@ -133,7 +113,7 @@ function paintSky(now, ctx) {
   }
   root.setProperty('--glow-x', `${Math.round(fx * 100)}%`);
   root.setProperty('--glow-y', `${Math.round(fy * 100)}%`);
-  document.querySelector('meta[name="theme-color"]').content = '#' + top.map((x) => x.toString(16).padStart(2, '0')).join('');
+  document.querySelector('meta[name="theme-color"]').content = '#' + c.top.map((x) => x.toString(16).padStart(2, '0')).join('');
 }
 
 // ---------------- Heute ----------------
@@ -237,7 +217,7 @@ function renderList(now, ctx) {
     </li>`;
   }).join('');
   const ill = moonIllumination(now);
-  $('#extras').innerHTML = [['Imsak', fmtTime(t.imsak)], ['Mitternacht', fmtTime(t.midnight)], ['Letztes Drittel', fmtTime(t.lastThird)], ['Mond', `${Math.round(ill.fraction * 100)} %`, moonPhaseName(ill.phase)]]
+  $('#extras').innerHTML = [['Imsak', fmtTime(t.imsak)], ['Mitternacht', fmtTime(t.midnight)], ['Qiyam', fmtTime(t.lastThird), 'Qiyam al-Layl: Beginn des letzten Drittels der Nacht'], ['Mond', `${Math.round(ill.fraction * 100)} %`, moonPhaseName(ill.phase)]]
     .map(([n, v, title]) => `<div${title ? ` title="${esc(title)}"` : ''}><dt>${esc(n)}</dt><dd>${esc(v)}</dd></div>`).join('');
   const m = METHODS[S.calc.method] || METHODS.MWL;
   $('#methodNote').textContent = `${m.name}, Asr ${S.calc.asr === 'hanafi' ? 'Hanafi' : 'Standard'}. Zeiten in ${tz().replace(/_/g, ' ')}.`;
@@ -338,7 +318,7 @@ async function fire(e) {
   if (mode === 'athan' && e.prayer !== 'sunrise') {
     player.stop();
     showOverlay(e.prayer, e.date, voiceFor(e.prayer));
-    try { await player.play(voiceFor(e.prayer), { volume: S.volume, kind: 'athan' }); }
+    try { await playAthan(voiceFor(e.prayer)); }
     catch { setPending(e.prayer); }
   }
 }
@@ -378,7 +358,7 @@ async function enableAll() {
   const p = await plat.requestNotifications();
   if (p === 'granted') {
     toast('Benachrichtigungen sind aktiv');
-    try { await plat.syncPush(S); } catch {}
+    try { await plat.syncPush(pushSettings()); } catch {}
   } else if (p === 'denied') toast('Benachrichtigungen wurden blockiert');
   renderPrompts(); renderNotifyStatus();
 }
@@ -553,13 +533,82 @@ function renderSettings() {
   $('#highLat').value = S.calc.highLat;
   $('#adjustGrid').innerHTML = PRAYERS.map((k) => `<label>${INFO[k].name}<input type="number" min="-60" max="60" step="1" data-adj="${k}" value="${S.calc.adjust[k]}"></label>`).join('');
   $$('input[name="clock"]').forEach((r) => (r.checked = r.value === S.clock));
+  $$('input[name="athanLength"]').forEach((r) => (r.checked = r.value === S.athanLength));
   $('#hijriAdj').value = String(hijriAdj());
+  renderIphone();
 
   $$('.desktop-only').forEach((e) => (e.hidden = !plat.isDesktop));
   $('#autostart').checked = !!desktopState.autostart;
   $('#openOnAthan').checked = !!S.openOnAthan;
   $('#versionLine').textContent = `Version ${VERSION}${plat.isDesktop ? ' für Windows' : plat.isStandalone ? ' (installiert)' : ''}`;
   renderNotifyStatus();
+}
+
+// ---------------- iPhone: Bark & Widget ----------------
+async function renderIphone() {
+  const show = plat.isIOS && !plat.isDesktop;
+  $('#iphoneGroup').hidden = !show;
+  if (!show) return;
+  loadWidgetTemplate();
+  const key = S.bark.key, st = $('#barkStatus'), input = $('#barkKey');
+  if (document.activeElement !== input) input.value = key ? `https://api.day.app/${key}/` : '';
+  $('#barkCritical').checked = S.bark.critical;
+  $('#barkActions').hidden = !key;
+  st.classList.remove('warn');
+  if (!key) { st.innerHTML = 'Noch nicht eingerichtet. Ohne Bark kommt die Mitteilung mit dem normalen Ton.'; return; }
+  const info = await plat.detectServer();
+  if (!info?.push) { st.innerHTML = '<b>Nicht möglich.</b> Öffne Athan über deine Cloudflare-Adresse.'; st.classList.add('warn'); return; }
+  if (plat.notifPermission() !== 'granted') { st.innerHTML = '<b>Fast fertig.</b> Erlaube oben noch die Benachrichtigungen.'; st.classList.add('warn'); return; }
+  st.innerHTML = `<b>Aktiv.</b> Zu jeder Gebetszeit spielt das iPhone die ersten Verse des Athan, auch gesperrt${S.bark.critical ? ' und lautlos' : ''}.`;
+}
+
+async function saveBark() {
+  const key = barkKey($('#barkKey').value);
+  if (!key) { toast('Das ist kein Bark-Link. Kopiere ihn in Bark (beginnt mit https://api.day.app/).', 5000); return; }
+  if (plat.notifPermission() !== 'granted') { await enableAll(); if (plat.notifPermission() !== 'granted') return; }
+  commit({ bark: { key, critical: $('#barkCritical').checked } });
+  $('#barkKey').blur();
+  await barkTest(true);
+}
+async function barkTest(saved = false) {
+  try {
+    const r = await plat.syncPush(pushSettings());
+    if (!r?.ok) throw new Error(r?.reason);
+    const t = await plat.testPush(0);
+    if (!t) { toast('Bitte 10 Sekunden warten und noch einmal testen.', 4000); return; }
+    toast(t.via === 'bark' ? `${saved ? 'Gespeichert. ' : ''}Gleich klingt der Athan über Bark.` : 'Bark hat nicht geantwortet. Prüfe den Link in Bark.', 6000);
+  } catch { toast('Erst Benachrichtigungen erlauben (Athan über die Cloudflare-Adresse öffnen).', 6000); }
+  renderIphone();
+}
+
+// Widget-Code (Scriptable): Vorlage vorab laden, damit das Kopieren direkt im Tippen passiert (iOS verlangt das)
+let widgetTpl = null;
+async function loadWidgetTemplate() {
+  if (widgetTpl) return widgetTpl;
+  try { const r = await fetch('widget/athan-widget.js'); if (r.ok) widgetTpl = await r.text(); } catch {}
+  return widgetTpl;
+}
+function widgetCode() {
+  const l = S.location;
+  const cfg = { name: l.name, lat: l.lat, lon: l.lon, tz: tz(), calc: S.calc, clock: S.clock, hijriAdj: hijriAdj() };
+  return widgetTpl.replace(/\/\*CONFIG\*\/[\s\S]*?\/\*END\*\//, () => `/*CONFIG*/${JSON.stringify(cfg)}/*END*/`);
+}
+async function copyWidget() {
+  if (!S.location) { toast('Wähle zuerst einen Ort'); return; }
+  const done = () => toast('Kopiert. Jetzt in Scriptable einfügen.', 4000);
+  if (!widgetTpl && window.ClipboardItem && navigator.clipboard?.write) {
+    try { // Safari erlaubt hier nachgeladenen Inhalt
+      await navigator.clipboard.write([new ClipboardItem({ 'text/plain': loadWidgetTemplate().then(() => new Blob([widgetCode()], { type: 'text/plain' })) })]);
+      return done();
+    } catch { /* weiter unten */ }
+  }
+  if (!(await loadWidgetTemplate())) { toast('Widget-Code nicht erreichbar. Prüfe die Internetverbindung.'); return; }
+  const code = widgetCode();
+  try { await navigator.clipboard.writeText(code); done(); }
+  catch {
+    const ta = $('#widgetCode'); ta.value = code; ta.hidden = false; ta.focus(); ta.select();
+    toast('Code ist markiert: tippe auf „Kopieren“.', 5000);
+  }
 }
 
 async function renderNotifyStatus() {
@@ -581,7 +630,10 @@ async function renderNotifyStatus() {
   const info = await plat.detectServer();
   const sub = await plat.currentPushSubscription().catch(() => null);
   $('#pushTest').hidden = !(info?.push && sub);
-  if (info?.push && sub) el.innerHTML = '<b>Aktiv, auch bei geschlossener App.</b> Du bekommst zu jeder Gebetszeit eine Mitteilung. Den Athan-Ton spielt das iPhone nur bei geöffneter App – tippe auf die Mitteilung.';
+  if (info?.push && sub) {
+    el.innerHTML = '<b>Aktiv, auch bei geschlossener App.</b> Du bekommst zu jeder Gebetszeit eine Mitteilung.'
+      + (!plat.isIOS ? '' : S.bark.key ? ' Den Athan-Ton spielt Bark.' : ' Für den Athan-Ton bei gesperrtem iPhone richte unten „iPhone“ ein.');
+  }
   else if (info?.push) el.innerHTML = '<b>Erlaubt.</b> Die Mitteilungen werden gerade eingerichtet …';
   else el.innerHTML = '<b>Aktiv, solange die App geöffnet ist.</b> Für Mitteilungen bei geschlossener App öffne Athan über deine Cloudflare-Adresse.';
 }
@@ -662,7 +714,7 @@ function bind() {
   $('#ovStop').onclick = async () => {
     if (pendingPrayer) {
       const p = pendingPrayer; clearPending();
-      try { await player.play(voiceFor(p), { volume: S.volume, kind: 'athan' }); } catch { setPending(p); }
+      try { await playAthan(voiceFor(p)); } catch { setPending(p); }
       return;
     }
     player.stop(); hideOverlay(); if (plat.isDesktop) plat.api('/api/stop', { method: 'POST' }).catch(() => {});
@@ -740,6 +792,16 @@ function bind() {
   $('#adjustGrid').addEventListener('change', (e) => { const k = e.target.dataset.adj; if (k) commit({ calc: { ...S.calc, adjust: { ...S.calc.adjust, [k]: +e.target.value } } }); });
   $$('input[name="clock"]').forEach((r) => (r.onchange = () => commit({ clock: r.value })));
   $('#hijriAdj').onchange = (e) => commit({ hijriAdj: +e.target.value });
+  $$('input[name="athanLength"]').forEach((r) => (r.onchange = () => {
+    commit({ athanLength: r.value });
+    toast(r.value === 'short' ? 'Athan: die ersten Verse' : 'Athan: ganz');
+  }));
+  $('#barkSave').onclick = saveBark;
+  $('#barkKey').addEventListener('keydown', (e) => { if (e.key === 'Enter') saveBark(); });
+  $('#barkCritical').onchange = (e) => { if (S.bark.key) commit({ bark: { ...S.bark, critical: e.target.checked } }); };
+  $('#barkTest').onclick = () => barkTest(false);
+  $('#barkRemove').onclick = () => { commit({ bark: { key: '', critical: false } }); toast('Bark getrennt. Mitteilungen kommen wieder mit dem normalen Ton.', 4000); };
+  $('#widgetCopy').onclick = copyWidget;
 
   $('#notifyEnable').onclick = enableAll;
   $('#notifyTest').onclick = async () => {
@@ -802,7 +864,7 @@ async function pollDesktop() {
     if (st.playing && (!was || was.at !== st.playing.at)) {
       showOverlay(st.playing.prayer, zonedParts(st.playing.at, tz()), st.playing.voice);
       // Ersatzweg: Windows konnte nicht abspielen → das Fenster spielt den Athan
-      if (st.playing.client) player.play(st.playing.voice, { volume: S.volume, kind: 'athan' }).catch(() => setPending(st.playing.prayer));
+      if (st.playing.client) playAthan(st.playing.voice).catch(() => setPending(st.playing.prayer));
     }
     if (!st.playing && was) { if (was.client) player.stop(); hideOverlay(); }
   } catch { /* App wird beendet */ }
@@ -842,7 +904,7 @@ async function init() {
   } else {
     hasCustom = !!(await loadCustom());
     await plat.registerSW();
-    if (plat.notifPermission() === 'granted' && S.location) plat.syncPush(S).catch(() => {});
+    if (plat.notifPermission() === 'granted' && S.location) plat.syncPush(pushSettings()).catch(() => {});
   }
   bind();
   route();
@@ -855,7 +917,7 @@ async function init() {
     const key = `${qa}:${qat}`;
     if (!fired.has(key)) remember(key);
     showOverlay(qa, zonedParts(qat, tz()), voiceFor(qa));
-    player.play(voiceFor(qa), { volume: S.volume, kind: 'athan' }).catch(() => setPending(qa));
+    playAthan(voiceFor(qa)).catch(() => setPending(qa));
   }
 }
 

@@ -5,6 +5,8 @@
 //   node server/server.mjs                 (Port 8080, Daten in ./data)
 //   PORT=443 TLS_CERT=cert.pem TLS_KEY=key.pem VAPID_SUBJECT=mailto:du@example.org node server/server.mjs
 //   node server/server.mjs --fetch-audio   (alle Aufnahmen vorab laden)
+//   PUBLIC_URL=https://athan.example.org   (für den Athan-Ton auf dem iPhone über Bark; Töne vorher mit
+//                                           node scripts/athan-sounds.mjs --out web/sounds erzeugen)
 
 import http from 'node:http';
 import https from 'node:https';
@@ -13,7 +15,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { generateVapidKeys, sendPush } from './webpush.mjs';
-import { cleanSettings, cleanSubscription, subId, messagesFor, isAudio } from './core.mjs';
+import { cleanSettings, cleanSubscription, subId, messagesFor, isAudio, barkPayload, BARK_URL } from './core.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.resolve(process.env.PUBLIC_DIR || path.join(HERE, '..', 'web'));
@@ -52,6 +54,14 @@ const voiceIds = new Set(catalog.map((v) => v.id));
 
 // ---------- Planer ----------
 async function deliver(s, data, ttl) {
+  if (s.settings.bark && process.env.PUBLIC_URL) {
+    try {
+      const r = await fetch(BARK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json; charset=utf-8' }, body: JSON.stringify(barkPayload(s.settings, data, new URL(process.env.PUBLIC_URL).origin)), signal: AbortSignal.timeout(8000) });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok && (j.code === undefined || j.code === 200)) return 201;
+      log('Bark abgelehnt', r.status, j.message || '');
+    } catch (e) { log('Bark-Fehler', e.message); }
+  }
   try {
     const r = await sendPush(s.subscription, data, vapid, SUBJECT, { ttl });
     if (r.status === 404 || r.status === 410) { subs.delete(s.id); persist(); log('Abo abgelaufen, entfernt', s.id.slice(0, 8)); }

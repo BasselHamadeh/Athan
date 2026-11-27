@@ -235,6 +235,39 @@
             </div>
           </section>
 
+          <section class="group g-iphone" id="iphoneGroup" aria-labelledby="g-iphone" hidden>
+            <h3 id="g-iphone">iPhone</h3>
+            <h4>Athan-Ton bei gesperrtem iPhone</h4>
+            <p class="group-intro">Web-Apps dürfen auf dem iPhone keinen eigenen Mitteilungston spielen. Die kostenlose App Bark (ohne Werbung) übernimmt das: Zu jeder Gebetszeit erklingen die ersten Verse des Athan, so wie in anderen Gebets-Apps.</p>
+            <ol class="steps">
+              <li><a href="https://apps.apple.com/app/id1403753865" target="_blank" rel="noopener">Bark laden</a>, öffnen und Mitteilungen erlauben.</li>
+              <li>In Bark auf den Link mit deinem Schlüssel tippen und kopieren (<span class="mono">https://api.day.app/…</span>).</li>
+              <li>Hier einfügen und speichern. Du hörst sofort einen Test.</li>
+            </ol>
+            <div class="inline-form">
+              <label class="visually-hidden" for="barkKey">Bark-Link</label>
+              <input id="barkKey" type="url" inputmode="url" placeholder="https://api.day.app/…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+              <button class="btn btn-gold" id="barkSave" type="button">Speichern</button>
+            </div>
+            <label class="switch"><input type="checkbox" id="barkCritical"><span>Auch wenn das iPhone lautlos ist</span></label>
+            <p class="status-line" id="barkStatus"></p>
+            <div class="btn-row" id="barkActions" hidden>
+              <button class="btn btn-ghost" id="barkTest" type="button"><svg><use href="#i-athan"/></svg>Athan-Ton testen</button>
+              <button class="btn btn-ghost" id="barkRemove" type="button">Bark trennen</button>
+            </div>
+
+            <h4>Widget</h4>
+            <p class="group-intro">Alle Zeiten auf Home- und Sperrbildschirm: Fajr, Shuruq, Dhuhr, Asr, Maghrib, Isha und Qiyam. Dafür brauchst du die kostenlose App Scriptable.</p>
+            <ol class="steps">
+              <li><a href="https://apps.apple.com/app/id1405459188" target="_blank" rel="noopener">Scriptable laden</a>.</li>
+              <li><button class="btn btn-gold btn-sm" id="widgetCopy" type="button">Widget-Code kopieren</button></li>
+              <li><a href="scriptable:///add">In Scriptable</a> ein neues Skript öffnen, einfügen, oben „Athan“ nennen, Fertig.</li>
+              <li>Home-Bildschirm gedrückt halten → Bearbeiten → Widget hinzufügen → Scriptable → Größe wählen. Dann das Widget antippen und bei Script „Athan“ wählen.</li>
+            </ol>
+            <p class="small">Nach einem Ortswechsel den Code einmal neu kopieren und einfügen.</p>
+            <textarea class="widget-code" id="widgetCode" readonly hidden aria-label="Widget-Code"></textarea>
+          </section>
+
           <section class="group g-voice" aria-labelledby="g-athan">
             <h3 id="g-athan">Stimme</h3>
             <p class="group-intro">Mit ▶ vorher anhören. Die Aufnahme bleibt danach auf dem Gerät.</p>
@@ -242,6 +275,13 @@
             <div class="row">
               <label for="volume">Lautstärke</label>
               <input id="volume" type="range" min="0" max="1" step="0.05">
+            </div>
+            <div class="row">
+              <span class="row-label" id="lenLabel">Länge</span>
+              <div class="seg" role="radiogroup" aria-labelledby="lenLabel">
+                <label><input type="radio" name="athanLength" value="full"><span>Ganzer Athan</span></label>
+                <label><input type="radio" name="athanLength" value="short"><span>Erste Verse</span></label>
+              </div>
             </div>
             <h4>Pro Gebet</h4>
             <div class="modes" id="modes"></div>
