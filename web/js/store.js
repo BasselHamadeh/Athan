@@ -20,11 +20,11 @@ export const DEFAULTS = {
   bark: { key: '', critical: false }, // iPhone: Athan-Ton bei gesperrtem Bildschirm über die App Bark
 };
 
-/** Bark-Schlüssel aus einem eingefügten Link oder dem Schlüssel selbst ('' = ungültig). */
+/** Bark-Schlüssel aus dem eingefügten Text: Schlüssel, Link oder ganzer Befehl aus Bark („Copy“) – '' = ungültig. */
 export function barkKey(input) {
   const s = String(input || '').trim();
   if (/^[A-Za-z0-9]{8,64}$/.test(s)) return s;
-  const m = /^https:\/\/api\.day\.app\/([A-Za-z0-9]{8,64})(?:[/?#]|$)/.exec(s);
+  const m = /https:\/\/api\.day\.app\/([A-Za-z0-9]{8,64})(?=[/?#\s"'\\]|$)/.exec(s) || /"device_key"\s*:\s*"([A-Za-z0-9]{8,64})"/.exec(s);
   return m ? m[1] : '';
 }
 

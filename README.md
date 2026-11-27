@@ -73,8 +73,8 @@ Der Node-Server (`server/`, keine Pakete) kann dasselbe auf einem VPS oder Raspb
 
 Die kostenlose, quelloffene App [Bark](https://apps.apple.com/app/id1403753865) (ohne Werbung, sammelt keine Daten) spielt eigene Mitteilungstöne. iOS erlaubt dafür höchstens 30 Sekunden – darum klingen dort **die ersten Verse** (bis zur Atempause vor 30 s, je Stimme ermittelt mit `scripts/athan-sounds.mjs`).
 
-1. Bark laden, öffnen, Mitteilungen erlauben.
-2. In Bark den Link mit deinem Schlüssel kopieren (`https://api.day.app/…`).
+1. Bark laden, öffnen, **Enable** tippen (Mitteilungen erlauben).
+2. In Bark unter „Usage Examples“ auf **Copy** tippen (statt `YOUR_KEY` steht dort jetzt dein Schlüssel).
 3. In Athan: Einstellungen → iPhone → einfügen → Speichern. Es kommt sofort ein Test mit Athan-Ton.
 
 Optional „Auch wenn das iPhone lautlos ist“ (kritischer Hinweis, Bark fragt einmal nach der Erlaubnis). Klappt Bark einmal nicht, kommt die normale Mitteilung.

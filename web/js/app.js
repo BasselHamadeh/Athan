@@ -7,7 +7,7 @@ import { specialDay, hijriParts, moonPhaseName } from './hijri.js';
 import { initSky } from './sky.js';
 import { skyAt } from './palette.js';
 
-const VERSION = '1.3.0';
+const VERSION = '1.3.1';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -563,8 +563,13 @@ async function renderIphone() {
 }
 
 async function saveBark() {
-  const key = barkKey($('#barkKey').value);
-  if (!key) { toast('Das ist kein Bark-Link. Kopiere ihn in Bark (beginnt mit https://api.day.app/).', 5000); return; }
+  const raw = $('#barkKey').value;
+  const key = barkKey(raw);
+  if (!key) {
+    toast(/YOUR_KEY/.test(raw) ? 'In Bark zuerst „Enable“ tippen – dann steht dort dein Schlüssel statt YOUR_KEY. Danach „Copy“.'
+      : 'Kein Bark-Schlüssel gefunden. In Bark auf „Copy“ tippen und hier einfügen.', 6000);
+    return;
+  }
   if (plat.notifPermission() !== 'granted') { await enableAll(); if (plat.notifPermission() !== 'granted') return; }
   commit({ bark: { key, critical: $('#barkCritical').checked } });
   $('#barkKey').blur();
