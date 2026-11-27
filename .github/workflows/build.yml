@@ -38,19 +38,9 @@ jobs:
           dotnet tool install --global wix --version 5.0.2
           wix build installer/athan.wxs -arch x64 -d Version=$VERSION -o "dist/Athan-Setup-$VERSION-wix.msi"
 
-      - name: MSI testweise installieren und wieder entfernen
+      - name: Windows-App echt testen (installieren, Gebet, Athan, Benachrichtigung, deinstallieren)
         shell: pwsh
-        run: |
-          $msi = Resolve-Path "dist/Athan-Setup-$env:VERSION.msi"
-          $p = Start-Process msiexec -ArgumentList "/i `"$msi`" /qn /l*v install.log" -Wait -PassThru
-          if ($p.ExitCode -ne 0) {
-            Get-Content install.log -Encoding Unicode | Select-String -Pattern 'Return value 3|Note: 1: (1[0-9]{3}|2[0-9]{3})|DEBUG: Error|error code|Action start|Action ended' | Select-Object -Last 80 | ForEach-Object { $_.Line }
-            throw "Installation fehlgeschlagen: $($p.ExitCode)"
-          }
-          if (-not (Test-Path "$env:LOCALAPPDATA\Programs\Athan\Athan.exe")) { throw "Athan.exe fehlt nach der Installation" }
-          $p = Start-Process msiexec -ArgumentList "/x `"$msi`" /qn" -Wait -PassThru
-          if ($p.ExitCode -ne 0) { throw "Deinstallation fehlgeschlagen: $($p.ExitCode)" }
-          Write-Host "MSI installiert und deinstalliert ✓"
+        run: ./tests/windows-smoke.ps1 -Version $env:VERSION
 
       - uses: actions/upload-artifact@v4
         if: always()

@@ -82,11 +82,18 @@ async function api(req, env, url) {
   }
   if (p === '/api/test') {
     const id = await subId(String(body.endpoint || ''));
-    const s = (await loadSubs(env)).find((x) => x.id === id);
+    const subs = await loadSubs(env);
+    const s = subs.find((x) => x.id === id);
     if (!s) return json({ error: 'Abo unbekannt' }, 404);
     if (Date.now() - (testTimes.get(id) || 0) < 10000) return json({ error: 'Bitte kurz warten' }, 429);
     testTimes.set(id, Date.now());
-    const r = await deliver(env, await getVapid(env), s, { title: 'Athan – Test', body: `Benachrichtigungen für ${s.settings.location.name} funktionieren.`, tag: 'test', url: './#einstellungen' }, 120);
+    if (+body.delay > 0) {
+      // Test bei gesperrtem Handy: der Minuten-Planer schickt ihn in ca. 1 Minute
+      s.testAt = Math.floor(Date.now() / 60000) * 60000 + 60000;
+      await saveSubs(env, subs);
+      return json({ scheduled: true, at: s.testAt });
+    }
+    const r = await deliver(env, await getVapid(env), s, testMessage(s), 120);
     return json({ status: r.status }, r.status >= 200 && r.status < 300 ? 200 : 502);
   }
   return json({ error: 'Unbekannt' }, 404);
@@ -131,12 +138,19 @@ function ranged(req, buf, type) {
   });
 }
 
+const testMessage = (s) => ({ title: 'Athan – Test ✓', body: `Mitteilungen für ${s.settings.location.name} funktionieren – auch bei gesperrtem Handy.`, tag: 'test', url: './#einstellungen' });
+
 /** Läuft jede Minute: verschickt alle Benachrichtigungen, die genau in dieser Minute fällig sind. */
 export async function runMinute(scheduledTime, env) {
   const minute = Math.floor(scheduledTime / 60000) * 60000;
   const subs = await loadSubs(env);
   const due = [];
-  for (const s of subs) for (const m of messagesFor(s.settings, minute - 60000, minute)) due.push({ s, m });
+  let tests = 0;
+  for (const s of subs) {
+    for (const m of messagesFor(s.settings, minute - 60000, minute)) due.push({ s, m });
+    if (s.testAt && s.testAt <= minute) { due.push({ s, m: { data: testMessage(s), ttl: 300 } }); delete s.testAt; tests++; }
+  }
+  if (tests) await saveSubs(env, subs);
   if (!due.length) return { sent: 0 };
   const vapid = await getVapid(env);
   const results = await Promise.all(due.map(async ({ s, m }) => ({ s, r: await deliver(env, vapid, s, m.data, m.ttl) })));

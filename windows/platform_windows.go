@@ -249,7 +249,11 @@ func (p *winPlatform) addIcon() {
 	n.UCallbackMessage = wmTray
 	n.HIcon = p.iconSmall
 	copyU16(n.SzTip[:], p.tip)
-	pShellNotifyIconW.Call(nimAdd, uintptr(unsafe.Pointer(&n)))
+	if r, _, err := pShellNotifyIconW.Call(nimAdd, uintptr(unsafe.Pointer(&n))); r == 0 {
+		log.Printf("Tray-Symbol konnte nicht angelegt werden: %v", err)
+	} else {
+		log.Print("Tray-Symbol bereit")
+	}
 }
 
 func (p *winPlatform) SetTooltip(s string) {
@@ -277,7 +281,11 @@ func (p *winPlatform) Notify(title, body string, silent bool) {
 		n.DwInfoFlags |= niifNoSound
 	}
 	n.HBalloonIcon = p.iconLarge
-	pShellNotifyIconW.Call(nimModify, uintptr(unsafe.Pointer(&n)))
+	if r, _, err := pShellNotifyIconW.Call(nimModify, uintptr(unsafe.Pointer(&n))); r == 0 {
+		log.Printf("Benachrichtigung fehlgeschlagen: %v", err)
+	} else {
+		log.Printf("Benachrichtigung angezeigt: %s", title)
+	}
 }
 
 // onUI führt f auf dem Fenster-Thread aus (MCI ist threadgebunden).

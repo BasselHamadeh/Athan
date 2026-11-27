@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob: data: https://dl2.islamweb.net https://audio.islamweb.net; connect-src 'self' https://geocoding-api.open-meteo.com https://nominatim.openstreetmap.org; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'none'; object-src 'none'">
   <meta name="referrer" content="no-referrer">
   <title>Athan</title>
@@ -199,6 +199,7 @@
             <div class="btn-row">
               <button class="btn btn-gold" id="notifyEnable" type="button">Benachrichtigungen erlauben</button>
               <button class="btn btn-ghost" id="athanTest" type="button"><svg><use href="#i-athan"/></svg>Athan jetzt testen</button>
+              <button class="btn btn-ghost" id="pushTest" type="button" hidden><svg><use href="#i-notify"/></svg>Test: Mitteilung in 1 Minute</button>
             </div>
             <div class="desktop-only" hidden>
               <label class="switch"><input type="checkbox" id="autostart"><span>Mit Windows starten</span></label>

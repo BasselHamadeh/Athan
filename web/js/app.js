@@ -3,7 +3,7 @@ import { loadLocal, saveLocal, sanitize, DEFAULTS } from './store.js';
 import { Player, saveCustom, loadCustom } from './audio.js';
 import * as plat from './platform.js';
 
-const VERSION = '1.1.0';
+const VERSION = '1.1.1';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -524,6 +524,7 @@ async function renderNotifyStatus() {
   if (perm === 'default') { el.innerHTML = 'Noch nicht erlaubt.'; return; }
   const info = await plat.detectServer();
   const sub = await plat.currentPushSubscription().catch(() => null);
+  $('#pushTest').hidden = !(info?.push && sub);
   if (info?.push && sub) el.innerHTML = '<b>Aktiv, auch bei geschlossener App.</b> Du bekommst zu jeder Gebetszeit eine Mitteilung. Den Athan-Ton spielt das iPhone nur bei geöffneter App – tippe auf die Mitteilung.';
   else if (info?.push) el.innerHTML = '<b>Erlaubt.</b> Die Mitteilungen werden gerade eingerichtet …';
   else el.innerHTML = '<b>Aktiv, solange die App geöffnet ist.</b> Für Mitteilungen bei geschlossener App öffne Athan über deine Cloudflare-Adresse.';
@@ -691,6 +692,10 @@ function bind() {
     if (!viaPush) plat.showNotification('Athan – Test', { body: 'So sieht eine Gebetszeit-Benachrichtigung aus.', tag: 'test' });
     toast(viaPush ? 'Test über den Push-Server gesendet' : 'Test-Benachrichtigung angezeigt');
   };
+  $('#pushTest').onclick = async () => {
+    const ok = await plat.testPush(60).catch(() => false);
+    toast(ok ? 'Sperre jetzt das Handy. In etwa 1 Minute kommt die Mitteilung.' : 'Test fehlgeschlagen – bitte Mitteilungen erlauben', 6000);
+  };
   $('#athanTest').onclick = async () => {
     if (plat.isDesktop) { await plat.api('/api/test-athan', { method: 'POST' }).catch(() => toast('Test fehlgeschlagen')); return; }
     await player.unlock();
@@ -699,6 +704,10 @@ function bind() {
   };
   $('#autostart').onchange = (e) => plat.api('/api/autostart', { method: 'POST', body: { enabled: e.target.checked } }).then((r) => { desktopState.autostart = r.autostart; }).catch(() => toast('Autostart konnte nicht geändert werden'));
   $('#openOnAthan').onchange = (e) => commit({ openOnAthan: e.target.checked });
+
+  // Kein Zoomen (iOS ignoriert user-scalable=no, daher Gesten abfangen)
+  for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
+  document.addEventListener('touchmove', (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
 
   // erste Berührung schaltet Audio frei (iOS/Safari)
   document.addEventListener('pointerdown', () => player.unlock(), { once: true });

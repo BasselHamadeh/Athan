@@ -193,7 +193,9 @@ async function handler(req, res) {
       if (p === '/api/test') {
         const s = subs.get(await subId(String(body.endpoint || '')));
         if (!s) return json(res, 404, { error: 'Abo unbekannt' });
-        const status = await deliver(s, { title: 'Athan – Test', body: `Benachrichtigungen für ${s.settings.location.name} funktionieren.`, tag: 'test', url: './#einstellungen' }, 120);
+        const msg = { title: 'Athan – Test ✓', body: `Mitteilungen für ${s.settings.location.name} funktionieren – auch bei gesperrtem Handy.`, tag: 'test', url: './#einstellungen' };
+        if (+body.delay > 0) { setTimeout(() => deliver(s, msg, 300), 60000).unref?.(); return json(res, 200, { scheduled: true }); }
+        const status = await deliver(s, msg, 120);
         return json(res, status >= 200 && status < 300 ? 200 : 502, { status });
       }
       return json(res, 404, { error: 'Unbekannt' });

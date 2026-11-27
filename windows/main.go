@@ -570,7 +570,9 @@ func (a *App) playVoice(voice, prayer string, at time.Time) {
 		a.mu.Lock()
 		a.playing = nil
 		a.mu.Unlock()
+		return
 	}
+	log.Printf("Athan spielt: %s (%s)", voice, filepath.Base(file))
 }
 
 func (a *App) stop() {

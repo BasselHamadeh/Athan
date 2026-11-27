@@ -31,7 +31,8 @@
 }
 
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; background: var(--lapis-950); }
+html { -webkit-text-size-adjust: 100%; background: var(--lapis-950); touch-action: manipulation; }
+body { -webkit-tap-highlight-color: transparent; }
 body {
   margin: 0; min-height: 100dvh; color: var(--parchment); font: 400 1rem/1.5 var(--sans);
   -webkit-font-smoothing: antialiased; overflow-x: hidden;
@@ -254,6 +255,8 @@ select, input[type="search"], input[type="text"], input[type="number"] {
   background: rgba(7, 20, 48, .6); color: var(--parchment); max-width: 100%;
 }
 select { padding-right: 30px; }
+/* mindestens 16px, sonst zoomt iOS beim Antippen */
+select, input[type="search"], input[type="text"], input[type="number"] { font-size: 16px; }
 select option { background: var(--lapis-900); }
 input[type="range"] { accent-color: var(--gold); width: min(240px, 60%); }
 input[type="file"] { max-width: 100%; font-size: .85rem; color: var(--parchment-2); }

@@ -91,6 +91,19 @@ r = await post('/api/test', { endpoint });
 ok('Test-Push', r.status === 200);
 r = await post('/api/test', { endpoint });
 ok('Test-Push gedrosselt', r.status === 429);
+await new Promise((r) => setTimeout(r, 10)); 
+{ // Test in 1 Minute: Planer verschickt ihn in der nächsten Minute
+  const { default: w2 } = await import('../cloudflare/worker.js?delay');
+  const rr = await w2.fetch(new Request('https://athan.test/api/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint, delay: 60 }) }), env);
+  const j = await rr.json();
+  ok('Test in 1 Minute eingeplant', j.scheduled === true && j.at > Date.now());
+  const before = inbox.length;
+  ok('Vorher nichts', (await runMinute(j.at - 60000, env)).sent === 0);
+  const r2 = await runMinute(j.at + 1000, env);
+  await new Promise((r) => setTimeout(r, 100));
+  ok('Test-Mitteilung nach 1 Minute', r2.sent === 1 && inbox.length === before + 1 && inbox.at(-1).msg.title.startsWith('Athan – Test'));
+  ok('Nur einmal', (await runMinute(j.at + 61000, env)).sent === 0);
+}
 
 // 6) Sicherheit
 const strict = { ...env, ATHAN_TEST_ENDPOINTS: undefined };

@@ -93,9 +93,9 @@ export async function syncPush(settings) {
   return { ok: true };
 }
 
-export async function testPush() {
+export async function testPush(delay = 0) {
   const sub = await currentPushSubscription();
   if (!sub) return false;
-  const r = await fetch('api/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: sub.endpoint }) });
+  const r = await fetch('api/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: sub.endpoint, delay }) });
   return r.ok;
 }
