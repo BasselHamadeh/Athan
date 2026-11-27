@@ -101,7 +101,7 @@ await new Promise((r) => setTimeout(r, 10));
   ok('Vorher nichts', (await runMinute(j.at - 60000, env)).sent === 0);
   const r2 = await runMinute(j.at + 1000, env);
   await new Promise((r) => setTimeout(r, 100));
-  ok('Test-Mitteilung nach 1 Minute', r2.sent === 1 && inbox.length === before + 1 && inbox.at(-1).msg.title.startsWith('Athan – Test'));
+  ok('Test-Mitteilung nach 1 Minute (wie echtes Gebet)', r2.sent === 1 && inbox.length === before + 1 && inbox.at(-1).msg.title.startsWith('Zeit für') && inbox.at(-1).msg.athan === true, inbox.at(-1)?.msg.title);
   ok('Nur einmal', (await runMinute(j.at + 61000, env)).sent === 0);
 }
 
@@ -117,6 +117,7 @@ ok('Zu große Anfrage abgelehnt', (await post('/api/subscribe', { pad: 'x'.repea
 ok('Ungültiger Ort abgelehnt', (await post('/api/subscribe', { subscription, settings: { ...settings, location: { lat: 999 } } })).status === 400);
 ok('GET auf POST-Route abgelehnt', (await call('/api/subscribe')).status === 405);
 ok('Statische Dateien über ASSETS', (await (await call('/index.html')).text()) === 'asset');
+{ const d = await call('/athan.caf?v=abdulbaset'); ok('Bark-Import: athan.caf zum Laden', d.status === 200 && d.headers.get('content-disposition') === 'attachment; filename="athan.caf"' && d.headers.get('content-type') === 'audio/x-caf'); }
 
 // 7) Abgelaufenes Abo wird entfernt
 respondStatus = 410;
@@ -164,7 +165,7 @@ globalThis.fetch = realFetch;
   let rr = await runMinute(t.dhuhr, env);
   const d = bark.at(-1);
   ok('Dhuhr über Bark', rr.sent === 1 && bark.length === 1 && inbox.length === pushes, d?.title);
-  ok('Bark: Athan-Ton als soundUrl', d?.soundUrl === 'https://athan.basselhamadeh3.workers.dev/sounds/abdulbaset.caf' && d.sound === 'bell');
+  ok('Bark: Athan-Ton als soundUrl, Ersatz = importierter „athan“', d?.soundUrl === 'https://athan.basselhamadeh3.workers.dev/sounds/abdulbaset.caf' && d.sound === 'athan');
   ok('Bark: zeitkritisch, Gruppe, Symbol', d?.level === 'timeSensitive' && d.group === 'Athan' && d.icon.endsWith('/icons/icon-192.png') && d.device_key === key);
   const tf = computeDay({ y: 2026, m: 11, d: 28 }, berlin, { method: 'MWL' });
   await runMinute(tf.fajr, env);
@@ -175,7 +176,7 @@ globalThis.fetch = realFetch;
   ok('Nur Hinweis: ohne Athan-Ton', bark.at(-1)?.title.startsWith('Zeit für Asr') && !bark.at(-1).soundUrl);
   // Test-Knopf → Bark mit Athan-Ton
   const tr = await (await post('/api/test', { endpoint: ep2 })).json();
-  ok('Test über Bark mit Athan-Ton', tr.via === 'bark' && bark.at(-1)?.soundUrl?.endsWith('/abdulbaset.caf') && bark.at(-1).title === 'Athan – Test ✓');
+  ok('Test wie echtes Gebet (Text + Athan-Ton)', tr.via === 'bark' && /^Zeit für \w+ \(/.test(bark.at(-1)?.title) && bark.at(-1).body.endsWith('· Berlin') && /\/(abdulbaset|makkah_fajr)\.caf$/.test(bark.at(-1).soundUrl), bark.at(-1)?.title);
   // auch bei Lautlos (kritischer Hinweis)
   await post('/api/subscribe', { subscription: sub2, settings: { ...st, bark: { key, critical: true } } });
   await runMinute(t.maghrib, env);

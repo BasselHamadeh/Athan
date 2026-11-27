@@ -7,7 +7,7 @@ import { specialDay, hijriParts, moonPhaseName } from './hijri.js';
 import { initSky } from './sky.js';
 import { skyAt } from './palette.js';
 
-const VERSION = '1.3.1';
+const VERSION = '1.3.2';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -554,12 +554,13 @@ async function renderIphone() {
   if (document.activeElement !== input) input.value = key ? `https://api.day.app/${key}/` : '';
   $('#barkCritical').checked = S.bark.critical;
   $('#barkActions').hidden = !key;
+  $('#barkSound').href = `athan.caf?v=${encodeURIComponent(soundFor('dhuhr'))}`;
   st.classList.remove('warn');
-  if (!key) { st.innerHTML = 'Noch nicht eingerichtet. Ohne Bark kommt die Mitteilung mit dem normalen Ton.'; return; }
+  if (!key) { st.innerHTML = ''; return; }
   const info = await plat.detectServer();
   if (!info?.push) { st.innerHTML = '<b>Nicht möglich.</b> Öffne Athan über deine Cloudflare-Adresse.'; st.classList.add('warn'); return; }
   if (plat.notifPermission() !== 'granted') { st.innerHTML = '<b>Fast fertig.</b> Erlaube oben noch die Benachrichtigungen.'; st.classList.add('warn'); return; }
-  st.innerHTML = `<b>Aktiv.</b> Zu jeder Gebetszeit spielt das iPhone die ersten Verse des Athan, auch gesperrt${S.bark.critical ? ' und lautlos' : ''}.`;
+  st.innerHTML = `<b>Aktiv.</b> Athan zu jeder Gebetszeit, auch gesperrt${S.bark.critical ? ' und lautlos' : ''}. Kommt nur ein Glockenton: „Athan-Ton laden“ und in Bark unter Custom Sounds hinzufügen.`;
 }
 
 async function saveBark() {
@@ -581,7 +582,7 @@ async function barkTest(saved = false) {
     if (!r?.ok) throw new Error(r?.reason);
     const t = await plat.testPush(0);
     if (!t) { toast('Bitte 10 Sekunden warten und noch einmal testen.', 4000); return; }
-    toast(t.via === 'bark' ? `${saved ? 'Gespeichert. ' : ''}Gleich klingt der Athan über Bark.` : 'Bark hat nicht geantwortet. Prüfe den Link in Bark.', 6000);
+    toast(t.via === 'bark' ? `${saved ? 'Gespeichert. ' : ''}Gleich kommt die Mitteilung mit Athan.` : 'Bark hat nicht geantwortet. In Bark erneut „Copy“ und hier einfügen.', 6000);
   } catch { toast('Erst Benachrichtigungen erlauben (Athan über die Cloudflare-Adresse öffnen).', 6000); }
   renderIphone();
 }
@@ -637,7 +638,7 @@ async function renderNotifyStatus() {
   $('#pushTest').hidden = !(info?.push && sub);
   if (info?.push && sub) {
     el.innerHTML = '<b>Aktiv, auch bei geschlossener App.</b> Du bekommst zu jeder Gebetszeit eine Mitteilung.'
-      + (!plat.isIOS ? '' : S.bark.key ? ' Den Athan-Ton spielt Bark.' : ' Für den Athan-Ton bei gesperrtem iPhone richte unten „iPhone“ ein.');
+      + (!plat.isIOS ? '' : S.bark.key ? ' Den Athan-Ton spielt Bark.' : ' Athan-Ton bei gesperrtem iPhone: unten „iPhone“.');
   }
   else if (info?.push) el.innerHTML = '<b>Erlaubt.</b> Die Mitteilungen werden gerade eingerichtet …';
   else el.innerHTML = '<b>Aktiv, solange die App geöffnet ist.</b> Für Mitteilungen bei geschlossener App öffne Athan über deine Cloudflare-Adresse.';

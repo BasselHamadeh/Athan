@@ -15,7 +15,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { generateVapidKeys, sendPush } from './webpush.mjs';
-import { cleanSettings, cleanSubscription, subId, messagesFor, isAudio, barkPayload, BARK_URL } from './core.mjs';
+import { cleanSettings, cleanSubscription, subId, messagesFor, isAudio, barkPayload, BARK_URL, testData } from './core.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.resolve(process.env.PUBLIC_DIR || path.join(HERE, '..', 'web'));
@@ -203,8 +203,8 @@ async function handler(req, res) {
       if (p === '/api/test') {
         const s = subs.get(await subId(String(body.endpoint || '')));
         if (!s) return json(res, 404, { error: 'Abo unbekannt' });
-        const msg = { title: 'Athan – Test ✓', body: `Mitteilungen für ${s.settings.location.name} funktionieren – auch bei gesperrtem Handy.`, tag: 'test', url: './#einstellungen' };
-        if (+body.delay > 0) { setTimeout(() => deliver(s, msg, 300), 60000).unref?.(); return json(res, 200, { scheduled: true }); }
+        const msg = testData(s.settings);
+        if (+body.delay > 0) { setTimeout(() => deliver(s, testData(s.settings), 300), 60000).unref?.(); return json(res, 200, { scheduled: true }); }
         const status = await deliver(s, msg, 120);
         return json(res, status >= 200 && status < 300 ? 200 : 502, { status });
       }

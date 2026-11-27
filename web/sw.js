@@ -1,5 +1,5 @@
 // Service Worker: Offline-Betrieb und Push-Benachrichtigungen
-const CACHE = 'athan-v1.3.1';
+const CACHE = 'athan-v1.3.2';
 const SHELL = [
   './', 'index.html', 'css/app.css', 'js/app.js', 'js/praytimes.js', 'js/store.js', 'js/audio.js', 'js/platform.js', 'js/astro.js', 'js/hijri.js', 'js/sky.js', 'js/palette.js',
   'widget/athan-widget.js',
@@ -17,7 +17,7 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== location.origin) return;       // Ortssuche, Audioquellen: direkt
-  if (url.pathname.includes('/api/') || url.pathname.includes('/audio/')) return;  // Server-API und Audio (Range-Anfragen)
+  if (url.pathname.includes('/api/') || url.pathname.includes('/audio/') || url.pathname.endsWith('.caf')) return;  // Server-API und Audio (Range-Anfragen)
   if (e.request.mode === 'navigate') {
     e.respondWith(fetch(e.request).then((r) => { const copy = r.clone(); caches.open(CACHE).then((c) => c.put('index.html', copy)); return r; })
       .catch(() => caches.match('index.html')));

@@ -64,7 +64,7 @@ export function cleanSettings(s) {
 export const BARK_URL = 'https://api.day.app/push';
 export function barkPayload(settings, data, origin) {
   const b = settings.bark;
-  const athan = data.athan === true || data.sound === true;
+  const athan = data.athan === true;
   const voice = data.prayer === 'fajr' ? settings.sound?.fajr : settings.sound?.other;
   const p = {
     device_key: b.key, title: data.title, body: data.body, group: 'Athan',
@@ -73,7 +73,7 @@ export function barkPayload(settings, data, origin) {
   };
   if (athan) {
     p.soundUrl = `${origin}/sounds/${/^[a-z0-9_]{1,40}$/.test(voice || '') ? voice : 'makkah_mulla'}.caf`;
-    p.sound = 'bell'; // falls der Athan-Ton nicht geladen werden kann
+    p.sound = 'athan'; // in Bark unter „Custom Sounds“ importierter Athan – falls soundUrl nicht geht
     if (b.critical) p.volume = 8;
   }
   return p;
@@ -102,6 +102,30 @@ function hijriMonth(epoch, tz, adj) {
 }
 
 /** Alle Benachrichtigungen, deren Zeitpunkt in (from, to] liegt. */
+/** Mitteilung zur Gebetszeit – gleiche Form für echte Gebete und den Test. */
+export function prayerData(settings, e, mode = 'athan') {
+  const { location, clock } = settings;
+  const [name, ar] = INFO[e.prayer]; // freitags ebenfalls „Dhuhr“
+  const ramadan = (e.prayer === 'maghrib' || e.prayer === 'fajr') && hijriMonth(e.at, location.tz, settings.hijriAdj) === 9;
+  return {
+    title: e.prayer === 'sunrise' ? `Sonnenaufgang (${ar})`
+      : ramadan && e.prayer === 'maghrib' ? `Iftar: Zeit für Maghrib (${ar})`
+      : ramadan && e.prayer === 'fajr' ? `Suhoor endet: Zeit für Fajr (${ar})` : `Zeit für ${name} (${ar})`,
+    body: `${fmtTime(e.at, location.tz, clock)} · ${location.name}`, tag: `prayer-${e.prayer}-${e.at}`, prayer: e.prayer, at: e.at,
+    athan: mode === 'athan' && e.prayer !== 'sunrise', url: './#heute',
+  };
+}
+
+/** Test: sieht aus und klingt wie das nächste echte Gebet (mit Athan). */
+export function testData(settings, now = Date.now()) {
+  let e = null;
+  try { e = upcomingEvents(settings.location, settings.calc, now, 2).find((x) => x.prayer !== 'sunrise'); } catch { /* unten */ }
+  e ||= { prayer: 'maghrib', at: now };
+  const d = prayerData(settings, e, 'athan');
+  return { ...d, tag: `test-${now}`, at: now };
+}
+
+/** Alle Benachrichtigungen, deren Zeitpunkt in (from, to] liegt. */
 export function messagesFor(settings, from, to) {
   const { location, calc, modes, pre, clock } = settings;
   let events;
@@ -110,24 +134,11 @@ export function messagesFor(settings, from, to) {
   for (const e of events) {
     const mode = modes[e.prayer];
     if (!mode || mode === 'off') continue;
-    const [name, ar] = INFO[e.prayer]; // freitags ebenfalls „Dhuhr“
-    const when = fmtTime(e.at, location.tz, clock);
-    if (e.at > from && e.at <= to) {
-      const ramadan = (e.prayer === 'maghrib' || e.prayer === 'fajr') && hijriMonth(e.at, location.tz, settings.hijriAdj) === 9;
-      out.push({
-        key: `${e.prayer}:${e.at}`, ttl: 900,
-        data: {
-          title: e.prayer === 'sunrise' ? `Sonnenaufgang (${ar})`
-            : ramadan && e.prayer === 'maghrib' ? `Iftar: Zeit für Maghrib (${ar})`
-            : ramadan && e.prayer === 'fajr' ? `Suhoor endet: Zeit für Fajr (${ar})` : `Zeit für ${name} (${ar})`,
-          body: `${when} · ${location.name}`, tag: `prayer-${e.prayer}-${e.at}`, prayer: e.prayer, at: e.at,
-          athan: mode === 'athan' && e.prayer !== 'sunrise', url: './#heute',
-        },
-      });
-    }
+    if (e.at > from && e.at <= to) out.push({ key: `${e.prayer}:${e.at}`, ttl: 900, data: prayerData(settings, e, mode) });
     if (pre > 0) {
       const p = e.at - pre * 60000;
       if (p > from && p <= to) {
+        const name = INFO[e.prayer][0], when = fmtTime(e.at, location.tz, clock);
         out.push({ key: `pre:${e.prayer}:${e.at}`, ttl: pre * 60, data: { title: `${name} in ${pre} Minuten`, body: `Um ${when} · ${location.name}`, tag: `pre-${e.prayer}-${e.at}`, url: './#heute' } });
       }
     }

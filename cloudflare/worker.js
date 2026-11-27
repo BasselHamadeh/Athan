@@ -1,7 +1,7 @@
 // Athan auf Cloudflare Workers (kostenlos): liefert die Web-App aus, verschickt jede Minute fällige
 // Push-Benachrichtigungen (auch bei geschlossener App / gesperrtem Handy) und hält die Athan-Aufnahmen bereit.
 // Speicher: ein KV-Namespace (Bindung ATHAN). Keine Datenbank nötig.
-import { cleanSettings, cleanSubscription, subId, messagesFor, httpError, isAudio, barkPayload, BARK_URL } from '../server/core.mjs';
+import { cleanSettings, cleanSubscription, subId, messagesFor, httpError, isAudio, barkPayload, BARK_URL, testData } from '../server/core.mjs';
 import catalog from '../web/muezzins.json' with { type: 'json' };
 import appConfig from '../web/config.json' with { type: 'json' };
 import { generateVapidKeys, sendPush } from './webpush.js';
@@ -159,11 +159,7 @@ function ranged(req, buf, type) {
   });
 }
 
-const testMessage = (s) => ({
-  title: 'Athan – Test ✓',
-  body: s.settings.bark ? `So klingt der Athan in ${s.settings.location.name} – auch bei gesperrtem iPhone.` : `Mitteilungen für ${s.settings.location.name} funktionieren – auch bei gesperrtem Handy.`,
-  tag: 'test-' + Date.now(), url: './#einstellungen', sound: true,
-});
+const testMessage = (s) => testData(s.settings);
 
 /** Läuft jede Minute: verschickt alle Benachrichtigungen, die genau in dieser Minute fällig sind. */
 export async function runMinute(scheduledTime, env) {
@@ -190,6 +186,13 @@ export default {
     const url = new URL(req.url);
     try {
       if (url.pathname.startsWith('/api/')) return await api(req, env, url);
+      if (url.pathname === '/athan.caf' && req.method === 'GET') {
+        // Athan-Ton zum Importieren in Bark („Custom Sounds“) – heißt immer athan.caf
+        const v = /^[a-z0-9_]{1,40}$/.test(url.searchParams.get('v') || '') ? url.searchParams.get('v') : 'makkah_mulla';
+        const r = await env.ASSETS.fetch(new Request(new URL(`/sounds/${v}.caf`, url.origin)));
+        if (!r.ok) return new Response('Ton nicht gefunden', { status: 404, headers: SEC });
+        return new Response(r.body, { headers: { ...SEC, 'Content-Type': 'audio/x-caf', 'Content-Disposition': 'attachment; filename="athan.caf"', 'Cache-Control': 'no-store' } });
+      }
       const m = /^\/audio\/([a-z0-9_]{1,40})$/.exec(url.pathname);
       if (m && (req.method === 'GET' || req.method === 'HEAD')) return await audio(req, env, m[1]);
       return env.ASSETS.fetch(req);
