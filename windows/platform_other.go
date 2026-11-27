@@ -5,6 +5,7 @@ package main
 // Entwicklungs-Platzhalter für Linux/macOS: gleiche App, aber Ausgaben nur im Terminal.
 
 import (
+	"errors"
 	"log"
 	"os"
 	"os/signal"
@@ -31,6 +32,9 @@ func (p *devPlatform) Notify(title, body string, silent bool) {
 	log.Printf("[Benachrichtigung] %s – %s (leise=%v)", title, body, silent)
 }
 func (p *devPlatform) Play(file string, volume float64, done func()) error {
+	if os.Getenv("ATHAN_DEV_PLAY_FAIL") == "1" {
+		return errors.New("simuliert: kein Audiogerät")
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	log.Printf("[Wiedergabe] %s (Lautstärke %.0f%%)", file, volume*100)

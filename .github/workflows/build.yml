@@ -38,6 +38,9 @@ jobs:
           dotnet tool install --global wix --version 5.0.2
           wix build installer/athan.wxs -arch x64 -d Version=$VERSION -o "dist/Athan-Setup-$VERSION-wix.msi"
 
+      - name: Virtuelle Soundkarte (für den Wiedergabetest)
+        uses: LABSN/sound-ci-helpers@v1
+
       - name: Windows-App echt testen (installieren, Gebet, Athan, Benachrichtigung, deinstallieren)
         shell: pwsh
         run: ./tests/windows-smoke.ps1 -Version $env:VERSION

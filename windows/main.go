@@ -68,6 +68,7 @@ type Playing struct {
 	Prayer string `json:"prayer"`
 	Voice  string `json:"voice"`
 	At     int64  `json:"at"`
+	Client bool   `json:"client,omitempty"` // true = das Athan-Fenster spielt den Ton (Ersatzweg)
 }
 
 type App struct {
@@ -566,10 +567,20 @@ func (a *App) playVoice(voice, prayer string, at time.Time) {
 		a.mu.Unlock()
 	})
 	if err != nil {
-		log.Printf("Wiedergabe fehlgeschlagen: %v", err)
+		// Ersatzweg: das Athan-Fenster (Edge) spielt die Aufnahme ab
+		log.Printf("Windows-Wiedergabe fehlgeschlagen (%v) – Athan spielt im Fenster", err)
+		atMs := at.UnixMilli()
 		a.mu.Lock()
-		a.playing = nil
+		a.playing = &Playing{Prayer: prayer, Voice: voice, At: atMs, Client: true}
 		a.mu.Unlock()
+		a.plat.OpenWindow(a.url())
+		time.AfterFunc(10*time.Minute, func() {
+			a.mu.Lock()
+			if a.playing != nil && a.playing.At == atMs {
+				a.playing = nil
+			}
+			a.mu.Unlock()
+		})
 		return
 	}
 	log.Printf("Athan spielt: %s (%s)", voice, filepath.Base(file))

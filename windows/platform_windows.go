@@ -56,6 +56,7 @@ var (
 	pGetModuleHandleW       = kernel32.NewProc("GetModuleHandleW")
 	pGetCurrentThreadId     = kernel32.NewProc("GetCurrentThreadId")
 	pGetProcAddress         = kernel32.NewProc("GetProcAddress")
+	pCoInitializeEx         = syscall.NewLazyDLL("ole32.dll").NewProc("CoInitializeEx")
 	pMciSendStringW         = winmm.NewProc("mciSendStringW")
 	pMciGetErrorStringW     = winmm.NewProc("mciGetErrorStringW")
 	pRegOpenKeyExW          = advapi32.NewProc("RegOpenKeyExW")
@@ -193,6 +194,7 @@ func newPlatform(app *App) Platform {
 		pSetProcessDpiAwareCtx.Call(uintptr(^uintptr(3))) // DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 (-4)
 	}
 	enableDarkMenus()
+	pCoInitializeEx.Call(0, 0x2) // COM (STA) für die Medienwiedergabe
 	p := &winPlatform{app: app}
 	thePlatform = p
 	p.uiThread, _, _ = pGetCurrentThreadId.Call()
@@ -315,7 +317,10 @@ func (p *winPlatform) Play(file string, volume float64, done func()) error {
 	return p.onUI(func() error {
 		p.stopLocked()
 		if err := mci(fmt.Sprintf(`open "%s" type mpegvideo alias athan`, file), 0); err != nil {
-			return err
+			// zweiter Versuch: Gerätetyp von Windows anhand der Dateiendung wählen lassen
+			if err2 := mci(fmt.Sprintf(`open "%s" alias athan`, file), 0); err2 != nil {
+				return err
+			}
 		}
 		mci(fmt.Sprintf("setaudio athan volume to %d", int(volume*1000)), 0)
 		p.playDone, p.playing = done, true

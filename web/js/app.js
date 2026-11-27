@@ -724,7 +724,11 @@ function bind() {
     }
   });
 
-  player.on(() => { if ((location.hash || '').includes('einstellungen')) renderSettings(); if (!player.playing && !plat.isDesktop && !pendingPrayer) hideOverlay(); });
+  player.on(() => {
+    if ((location.hash || '').includes('einstellungen')) renderSettings();
+    if (!player.playing && !plat.isDesktop && !pendingPrayer) hideOverlay();
+    if (!player.playing && plat.isDesktop && desktopState.playing?.client && !pendingPrayer) { plat.api('/api/stop', { method: 'POST' }).catch(() => {}); hideOverlay(); }
+  });
 }
 
 function tick() {
@@ -738,8 +742,12 @@ async function pollDesktop() {
     const st = await plat.api('/api/status');
     const was = desktopState.playing;
     desktopState = st;
-    if (st.playing && (!was || was.at !== st.playing.at)) showOverlay(st.playing.prayer, zonedParts(st.playing.at, tz()), st.playing.voice);
-    if (!st.playing && was) hideOverlay();
+    if (st.playing && (!was || was.at !== st.playing.at)) {
+      showOverlay(st.playing.prayer, zonedParts(st.playing.at, tz()), st.playing.voice);
+      // Ersatzweg: Windows konnte nicht abspielen → das Fenster spielt den Athan
+      if (st.playing.client) player.play(st.playing.voice, { volume: S.volume, kind: 'athan' }).catch(() => setPending(st.playing.prayer));
+    }
+    if (!st.playing && was) { if (was.client) player.stop(); hideOverlay(); }
   } catch { /* App wird beendet */ }
 }
 

@@ -53,6 +53,7 @@ Write-Host "Warte $([int]$wait) s bis nach dem Gebet …"
 Start-Sleep $wait
 $st = Invoke-RestMethod "$base/api/status" -Headers $h
 $log = Get-Content (Join-Path $env:LOCALAPPDATA 'Athan\athan.log') -Raw
+Write-Host "Audiogeräte: $((Get-CimInstance Win32_SoundDevice | ForEach-Object Name) -join ', ')"
 Write-Host '---- athan.log ----'; Write-Host $log; Write-Host '-------------------'
 Check 'Tray-Symbol angelegt' ($log -match 'Tray-Symbol bereit')
 Check 'Athan-Aufnahme heruntergeladen' ($log -match 'Aufnahme makkah_mulla geladen')
