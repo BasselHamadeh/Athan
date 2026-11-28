@@ -54,6 +54,7 @@ type Settings struct {
 	Clock       string            `json:"clock"`
 	OpenOnAthan bool              `json:"openOnAthan"`
 	AthanLength string            `json:"athanLength"` // "short" = die ersten Verse
+	V           int               `json:"v"`           // Stand der Einstellungen
 }
 
 type Voice struct {
@@ -216,6 +217,17 @@ func (a *App) applySettings(b []byte) error {
 	var s Settings
 	if err := json.Unmarshal(b, &s); err != nil {
 		return err
+	}
+	if s.V < 2 {
+		// ältere Einstellungen: Fenster zum Athan öffnen (neuer Standard), auch in der gespeicherten Fassung
+		s.OpenOnAthan, s.V = true, 2
+		var m map[string]any
+		if json.Unmarshal(b, &m) == nil {
+			m["openOnAthan"], m["v"] = true, 2
+			if nb, err := json.Marshal(m); err == nil {
+				b = nb
+			}
+		}
 	}
 	var loc *time.Location
 	if s.Location != nil {

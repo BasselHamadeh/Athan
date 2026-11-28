@@ -1,9 +1,9 @@
-// Athan-Widget für Scriptable (iPhone) – Version 1.4.1
+// Athan-Widget für Scriptable (iPhone) – Version 1.5.0
 // https://github.com/BasselHamadeh/Athan · keine Werbung, kein Tracking, rechnet ohne Internet.
 // Aktualisiert sich selbst und übernimmt Ort und Einstellungen aus der Athan-App.
 
 const CONFIG = /*CONFIG*/{"name":"","lat":null,"lon":null,"tz":"","calc":{"method":"MWL","asr":"standard","highLat":"angle","adjust":{}},"clock":"24","hijriAdj":0}/*END*/;
-const WIDGET_VERSION = '1.4.1';
+const WIDGET_VERSION = '1.5.0';
 
 // ---- praytimes.js ----
 const M_praytimes = (() => {
@@ -483,6 +483,7 @@ const { skyAt } = M_palette;
 
 let C = CONFIG;
 const DAY = 86400000;
+const NOW_WINDOW = 20 * 60000;
 const NAMES = {
   fajr: ['Fajr', 'الفجر'], sunrise: ['Shuruq', 'الشروق'], dhuhr: ['Dhuhr', 'الظهر'], asr: ['Asr', 'العصر'],
   maghrib: ['Maghrib', 'المغرب'], isha: ['Isha', 'العشاء'], qiyam: ['Qiyam', 'القيام'],
@@ -569,16 +570,19 @@ function dayData(now) {
   const today = { y: z.y, m: z.m, d: z.d };
   const events = upcomingEvents(loc, C.calc, now - 1000, 2);
   const next = events.find((e) => e.at > now) || null;
-  // Angezeigt wird der Tag des nächsten Gebets – nach Isha also schon morgen
-  const D = next ? next.date : today;
+  // Die ersten 20 Minuten nach einem Gebet: „jetzt“ (mit Kaaba) statt schon das nächste
+  const current = upcomingEvents(loc, C.calc, now - NOW_WINDOW, 1).find((e) => e.prayer !== 'sunrise' && e.at <= now && e.at > now - NOW_WINDOW) || null;
+  // Angezeigt wird der Tag des Gebets im Blick – nach Isha also schon morgen
+  const D = current ? current.date : next ? next.date : today;
   const t = computeDay(D, loc, C.calc);
   const prev = computeDay(addDays(D, -1), loc, C.calc);
   const tt = sameDay(D, today) ? t : computeDay(today, loc, C.calc);
   // Qiyam: Beginn des letzten Nachtdrittels – vor Fajr die laufende Nacht, danach die kommende
   const times = { ...t, qiyam: now < t.fajr ? prev.lastThird : t.lastThird };
-  const after = next ? events.filter((e) => e.at > next.at).slice(0, 2) : [];
-  const hNext = next ? hijriParts(next.at, C.tz, C.hijriAdj || 0) : null;
-  return { now, today, D, t, tt, times, next, after, tomorrow: !sameDay(D, today), ramadanNext: hNext?.m === 9 };
+  const focus = current || next;
+  const after = focus ? events.filter((e) => e.at > focus.at).slice(0, 2) : [];
+  const hNext = focus ? hijriParts(focus.at, C.tz, C.hijriAdj || 0) : null;
+  return { now, today, D, t, tt, times, next: focus, isNow: !!current, upcoming: next, after, tomorrow: !sameDay(D, today), ramadanNext: hNext?.m === 9 };
 }
 
 // Name für eine Zeile – im Ramadan heißt Maghrib „Iftar“
@@ -586,6 +590,7 @@ const shownName = (d, e) => (d.ramadanNext && e === d.next && e.prayer === 'magh
 
 function nextLabel(d) {
   if (!d.next) return '';
+  if (d.isNow) return 'Jetzt ist Gebetszeit';
   const p = d.next.prayer;
   if (p === 'sunrise') return 'Fajr-Zeit endet';
   if (d.ramadanNext && p === 'maghrib') return 'Fastenbrechen';
@@ -594,6 +599,7 @@ function nextLabel(d) {
 }
 // kurzer Hinweis neben der Uhrzeit (nur wenn er etwas sagt)
 function sideLabel(d) {
+  if (d.isNow) return '';
   const p = d.next?.prayer;
   if (p === 'sunrise') return 'Fajr endet';
   if (d.ramadanNext && p === 'fajr') return 'Suhoor endet';
@@ -676,7 +682,37 @@ function skyImage(family, d) {
     }
   }
   drawMoon(ctx, family, w, h, now, alt > 0);
+  if (d.isNow) drawMakkah(ctx, family, w, h);
   return ctx.getImage();
+}
+
+// Zur Gebetszeit: Mekka am Horizont – Uhrturm, Minarette und Kaaba als Schattenriss mit goldenem Schein
+function drawMakkah(ctx, family, w, h) {
+  const H = h * (family === 'large' ? 0.36 : family === 'small' ? 0.55 : 0.7), base = h, cx = w * (family === 'small' ? 0.62 : 0.8), u = H / 100;
+  for (let i = 0; i < 10; i++) { // Schein hinter dem Turm
+    const k = 1 - i / 10, rx = H * 0.9 * k, ry = H * 0.75 * k;
+    ctx.setFillColor(new Color('#E8C27A', 0.035));
+    ctx.fillEllipse(new Rect(cx - rx, base - H * 0.55 - ry, rx * 2, ry * 2));
+  }
+  const dark = new Color('#040916', 0.72);
+  const rect = (x, y, rw, rh) => { ctx.setFillColor(dark); ctx.fillRect(new Rect(x, y, rw, rh)); };
+  const spire = (x, top, wd) => { const p = new Path(); p.move(new Point(x - wd, base)); p.addLine(new Point(x - wd, top + wd * 4)); p.addLine(new Point(x, top)); p.addLine(new Point(x + wd, top + wd * 4)); p.addLine(new Point(x + wd, base)); p.closeSubpath(); ctx.addPath(p); ctx.setFillColor(dark); ctx.fillPath(); };
+  // Uhrturm
+  rect(cx - 9 * u, base - 58 * u, 18 * u, 58 * u);
+  rect(cx - 6.5 * u, base - 72 * u, 13 * u, 15 * u);
+  rect(cx - 4.5 * u, base - 80 * u, 9 * u, 9 * u);
+  spire(cx, base - 100 * u, 1.2 * u);
+  ctx.setFillColor(new Color('#F3DBA4', 0.4)); ctx.fillEllipse(new Rect(cx - 4.2 * u, base - 69.5 * u, 8.4 * u, 8.4 * u)); // Uhr
+  ctx.setFillColor(new Color('#F3DBA4', 0.9)); ctx.fillEllipse(new Rect(cx - 1.4 * u, base - 103 * u, 2.8 * u, 2.8 * u)); // Mondsichel oben
+  // Nebentürme und Minarette
+  rect(cx - 21 * u, base - 36 * u, 10 * u, 36 * u);
+  rect(cx + 11 * u, base - 32 * u, 10 * u, 32 * u);
+  spire(cx - 30 * u, base - 52 * u, 1.3 * u);
+  spire(cx + 27 * u, base - 48 * u, 1.3 * u);
+  // Kaaba davor, mit goldenem Band
+  const kx = cx - 48 * u, kw = 15 * u;
+  rect(kx, base - 14 * u, kw, 14 * u);
+  ctx.setFillColor(new Color('#D8B26E', 0.9)); ctx.fillRect(new Rect(kx, base - 11.5 * u, kw, 1.6 * u));
 }
 
 // Mond oben rechts: Phase und Neigung der hellen Seite wie am Himmel über dem Ort
@@ -751,6 +787,23 @@ function logoImage(ramadan, pt = 22) {
   }
   return ctx.getImage();
 }
+// Kaaba als kleines Zeichen (für „jetzt“)
+function kaabaImage(pt, color) {
+  const px = pt * 3, ctx = new DrawContext();
+  ctx.size = new Size(px, px); ctx.opaque = false; ctx.respectScreenScale = false;
+  const k = px / 24, P = (x, y) => new Point(x * k, y * k);
+  const body = new Path();
+  [P(4, 8), P(12, 4.5), P(20, 8), P(20, 17.5), P(12, 21), P(4, 17.5)].forEach((q, i) => (i ? body.addLine(q) : body.move(q)));
+  body.closeSubpath();
+  ctx.addPath(body); ctx.setFillColor(color); ctx.fillPath();
+  const band = new Path(); band.move(P(4, 10.6)); band.addLine(P(12, 14)); band.addLine(P(20, 10.6));
+  ctx.addPath(band); ctx.setStrokeColor(new Color('#D8B26E')); ctx.setLineWidth(1.6 * k); ctx.strokePath();
+  return ctx.getImage();
+}
+function kaaba(stack, pt, color) {
+  try { const img = stack.addImage(kaabaImage(pt, color)); img.imageSize = new Size(pt, pt); return img; } catch { return null; }
+}
+
 const isRamadanNow = (d) => hijriParts(d.now, C.tz, C.hijriAdj || 0).m === 9;
 function logo(stack, d, pt) {
   try { const img = stack.addImage(logoImage(isRamadanNow(d), pt)); img.imageSize = new Size(pt, pt); return img; } catch { return null; }
@@ -822,12 +875,13 @@ function medium(d) {
   w.addSpacer(4);
   if (d.next) {
     const nx = hstack(w, 8);
-    text(nx, shownName(d, d.next), serif(25, true), INK, { scale: 0.6 });
-    text(nx, NAMES[d.next.prayer][1], arabic(15), GOLD);
+    if (d.isNow) kaaba(nx, 17, INK);
+    text(nx, shownName(d, d.next), serif(20, true), INK, { scale: 0.6 });
+    text(nx, NAMES[d.next.prayer][1], arabic(13), GOLD);
     nx.addSpacer();
     const side = sideLabel(d);
-    if (side) text(nx, side, Font.regularSystemFont(11), INK3);
-    text(nx, fmt(d.next.at), digits(22, 'semibold'), GOLD);
+    if (side) text(nx, side, Font.regularSystemFont(10.5), INK3);
+    text(nx, d.isNow ? 'jetzt' : fmt(d.next.at), digits(17, 'semibold'), GOLD);
   }
   w.addSpacer();
   const cols = hstack(w, 0);
@@ -839,7 +893,7 @@ function medium(d) {
     const op = { opacity: st.passed ? 0.48 : 1, scale: 0.55 };
     const a = hstack(col); a.addSpacer(); text(a, NAMES[k][0], serif(10.5, st.isNext), st.isNext ? GOLD : INK2, op); a.addSpacer();
     const b = hstack(col); b.addSpacer(); text(b, NAMES[k][1], arabic(9.5), GOLD, { ...op, opacity: st.passed ? 0.4 : 0.85 }); b.addSpacer();
-    const c = hstack(col); c.addSpacer(); text(c, fmt(st.at), digits(13.5, st.isNext ? 'bold' : 'semibold'), st.isNext ? GOLD : INK, op); c.addSpacer();
+    const c = hstack(col); c.addSpacer(); text(c, fmt(st.at), digits(12.5, st.isNext ? 'bold' : 'semibold'), st.isNext ? GOLD : INK, op); c.addSpacer();
     if (k !== 'qiyam') cols.addSpacer(2);
   }
   return w;
@@ -850,7 +904,7 @@ function large(d) {
   const sp = specialDay(d.now, C.tz, C.hijriAdj || 0);
   // kleine iPhones (SE) und Tage mit Hinweis (Ramadan, Eid …): enger setzen, damit alles Platz hat
   const tight = widgetSize('large')[1] < 345 || !!sp;
-  const rowPad = tight ? 2.2 : 3.6, rowFont = tight ? 14 : 15;
+  const rowPad = tight ? 2.4 : 3.8, rowFont = tight ? 13 : 14;
   w.setPadding(15, 16, 13, 16);
   const head = hstack(w, 7);
   logo(head, d, 20);
@@ -876,10 +930,11 @@ function large(d) {
   if (d.next) {
     text(w, nextLabel(d), Font.regularSystemFont(11), INK3);
     const nx = hstack(w, 8);
-    text(nx, shownName(d, d.next), serif(tight ? 24 : 28, true), INK, { scale: 0.6 });
-    text(nx, NAMES[d.next.prayer][1], arabic(tight ? 15 : 17), GOLD);
+    if (d.isNow) kaaba(nx, tight ? 18 : 20, INK);
+    text(nx, shownName(d, d.next), serif(tight ? 20 : 23, true), INK, { scale: 0.6 });
+    text(nx, NAMES[d.next.prayer][1], arabic(tight ? 13 : 15), GOLD);
     nx.addSpacer();
-    text(nx, fmt(d.next.at), digits(tight ? 22 : 26, 'semibold'), GOLD);
+    text(nx, d.isNow ? 'jetzt' : fmt(d.next.at), digits(tight ? 18 : 21, 'semibold'), GOLD);
   }
   w.addSpacer(tight ? 6 : 10);
   const list = vstack(w, 1);
@@ -906,18 +961,18 @@ function lockRect(d) {
   if (!d.next) { text(w, 'Athan', Font.semiboldSystemFont(15), Color.white()); return w; }
   w.addSpacer();
   const a = hstack(w, 5);
-  symbol(a, d.next.prayer, 15, Color.white());
-  text(a, shownName(d, d.next), Font.boldSystemFont(22), Color.white(), { scale: 0.6 });
+  if (d.isNow) kaaba(a, 15, Color.white()); else symbol(a, d.next.prayer, 13, Color.white());
+  text(a, shownName(d, d.next), Font.boldSystemFont(18), Color.white(), { scale: 0.6 });
   a.addSpacer();
-  text(a, fmt(d.next.at), Font.boldRoundedSystemFont(22), Color.white(), { scale: 0.6 });
+  text(a, d.isNow ? 'jetzt' : fmt(d.next.at), Font.boldRoundedSystemFont(18), Color.white(), { scale: 0.6 });
   const n = d.after[0];
   if (n) {
     w.addSpacer(3);
     const b = hstack(w, 5);
-    symbol(b, n.prayer, 11, new Color('#FFFFFF', 0.62));
-    text(b, NAMES[n.prayer][0], Font.semiboldSystemFont(14), Color.white(), { opacity: 0.62 });
+    symbol(b, n.prayer, 10, new Color('#FFFFFF', 0.62));
+    text(b, NAMES[n.prayer][0], Font.semiboldSystemFont(13), Color.white(), { opacity: 0.62 });
     b.addSpacer();
-    text(b, fmt(n.at), Font.semiboldRoundedSystemFont(14), Color.white(), { opacity: 0.62 });
+    text(b, fmt(n.at), Font.semiboldRoundedSystemFont(13), Color.white(), { opacity: 0.62 });
   }
   w.addSpacer();
   return w;
@@ -927,8 +982,8 @@ function lockCircle(d) {
   w.addAccessoryWidgetBackground = true;
   w.setPadding(2, 2, 2, 2);
   if (!d.next) return w;
-  const s = hstack(w); s.addSpacer(); symbol(s, d.next.prayer, 11, Color.white()); s.addSpacer();
-  const b = hstack(w); b.addSpacer(); text(b, fmt(d.next.at), Font.boldRoundedSystemFont(16), Color.white(), { scale: 0.6 }); b.addSpacer();
+  const s = hstack(w); s.addSpacer(); if (d.isNow) kaaba(s, 13, Color.white()); else symbol(s, d.next.prayer, 11, Color.white()); s.addSpacer();
+  const b = hstack(w); b.addSpacer(); text(b, d.isNow ? 'jetzt' : fmt(d.next.at), Font.boldRoundedSystemFont(15), Color.white(), { scale: 0.6 }); b.addSpacer();
   const a = hstack(w); a.addSpacer(); text(a, shownName(d, d.next), Font.semiboldSystemFont(10), Color.white(), { scale: 0.6, opacity: 0.8 }); a.addSpacer();
   return w;
 }
@@ -936,7 +991,7 @@ function lockInline(d) {
   const w = new ListWidget();
   if (!d.next) { w.addText('Athan'); return w; }
   try { const img = w.addImage(SFSymbol.named(SYMBOL[d.next.prayer] || 'moon.stars.fill').image); img.imageSize = new Size(12, 12); } catch { /* ohne Symbol */ }
-  w.addText(`${shownName(d, d.next)} ${fmt(d.next.at)}`);
+  w.addText(d.isNow ? `${shownName(d, d.next)} · jetzt` : `${shownName(d, d.next)} ${fmt(d.next.at)}`);
   return w;
 }
 
@@ -964,7 +1019,7 @@ function build(family, now = Date.now()) {
   }
   // Neu zeichnen direkt nach dem nächsten Gebet. Home-Bildschirm zusätzlich für die Himmelsfarben
   // (Dämmerung alle 15 Min.); Sperrbildschirm nur zum Gebet – so bleibt iOS-Budget für pünktliches Umschalten.
-  const atNext = d.next ? d.next.at + 1500 : now + 3600000;
+  const atNext = d.isNow ? Math.min(d.next.at + NOW_WINDOW + 1500, d.upcoming ? d.upcoming.at + 1500 : Infinity) : d.next ? d.next.at + 1500 : now + 3600000;
   let when = atNext;
   if (!family.startsWith('accessory')) {
     const alt = sunAltitude(now, C.lat, C.lon);

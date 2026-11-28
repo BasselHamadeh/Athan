@@ -18,6 +18,7 @@ const TIMES = {
   dawn: ['Samstag 07:40', berlin(2026, 11, 28, 7, 40)],
   ramadan: ['Ramadan, 20.2.2027 17:00', berlin(2027, 2, 20, 17, 0)],
   fullmoon: ['Vollmond 24.12.2026 21:00', berlin(2026, 12, 24, 21, 0)],
+  isha: ['Isha-Zeit (jetzt)', berlin(2026, 11, 27, 18, 30)],
 };
 let html = '';
 for (const s of scenes) {

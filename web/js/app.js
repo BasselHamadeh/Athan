@@ -6,8 +6,9 @@ import { moonPosition, moonIllumination, moonLitPath, moonRotation } from './ast
 import { specialDay, hijriParts, moonPhaseName } from './hijri.js';
 import { initSky } from './sky.js';
 import { skyAt } from './palette.js';
+import { monthCanvas, pngBlob, pdfBlob, saveFile } from './export.js';
 
-const VERSION = '1.4.1';
+const VERSION = '1.5.0';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -497,6 +498,38 @@ function renderMonth() {
   $('#monthTable').innerHTML = `<thead><tr><th scope="col">Tag</th>${PRAYERS.map((k) => `<th scope="col">${INFO[k].name}</th>`).join('')}</tr></thead><tbody>${rows}</tbody>`;
 }
 
+// Monat als PNG oder PDF (wie angezeigt: Ort, Berechnung, Hidschri, heute, Freitage, Ramadan)
+async function exportMonth(kind) {
+  if (!S.location) { toast('Wähle zuerst einen Ort'); return; }
+  const { y, m } = monthCursor;
+  const today = zonedParts(Date.now(), tz());
+  const days = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const wd = new Intl.DateTimeFormat('de-DE', { weekday: 'short', timeZone: 'UTC' });
+  const hfmt = (o) => { try { return new Intl.DateTimeFormat('de-u-ca-islamic-umalqura-nu-latn', { ...o, timeZone: 'UTC' }); } catch { return null; } };
+  const hd = hfmt({ day: 'numeric', month: 'short' }), hm = hfmt({ month: 'long', year: 'numeric' });
+  const at = (d) => Date.UTC(y, m - 1, d, 12) + hijriAdj() * 86400000;
+  const rows = [];
+  let ramadan = false;
+  for (let d = 1; d <= days; d++) {
+    const t = computeDay({ y, m, d }, S.location, S.calc);
+    const rd = hijriParts(Date.UTC(y, m - 1, d, 12), 'UTC', hijriAdj()).m === 9;
+    ramadan ||= rd;
+    rows.push({ day: `${wd.format(Date.UTC(y, m - 1, d, 12)).replace('.', '')} ${d}.`, hijri: hd ? hd.format(at(d)) : '', times: PRAYERS.map((k) => fmtTime(t[k])),
+      fri: isFriday({ y, m, d }), today: today.y === y && today.m === m && today.d === d, ramadan: rd });
+  }
+  const h1 = hm?.format(at(1)).replace(/\s*AH$/, '') || '', h2 = hm?.format(at(days)).replace(/\s*AH$/, '') || '';
+  const title = $('#month-title').textContent;
+  try {
+    const canvas = await monthCanvas({ title, place: S.location.name, method: (METHODS[S.calc.method] || METHODS.MWL).name,
+      hijri: h1 === h2 ? h1 : h1.split(' ').pop() === h2.split(' ').pop() ? `${h1.replace(/ \d+$/, '')} – ${h2}` : `${h1} – ${h2}`,
+      cols: PRAYERS.map((k) => INFO[k].name), rows, ramadan, url: location.host });
+    const blob = kind === 'pdf' ? await pdfBlob(canvas) : await pngBlob(canvas);
+    const name = `Gebetszeiten-${S.location.name.replace(/[^\p{L}\p{N}]+/gu, '-')}-${y}-${String(m).padStart(2, '0')}.${kind}`;
+    const r = await saveFile(blob, name);
+    if (r === 'download') toast(`${kind.toUpperCase()} gespeichert`);
+  } catch { toast('Speichern hat nicht geklappt'); }
+}
+
 // ---------------- Einstellungen ----------------
 function renderSettings() {
   const l = S.location;
@@ -731,6 +764,8 @@ function bind() {
   $('#prevMonth').onclick = () => { const d = new Date(Date.UTC(monthCursor.y, monthCursor.m - 2, 1)); monthCursor = { y: d.getUTCFullYear(), m: d.getUTCMonth() + 1 }; renderMonth(); };
   $('#nextMonth').onclick = () => { const d = new Date(Date.UTC(monthCursor.y, monthCursor.m, 1)); monthCursor = { y: d.getUTCFullYear(), m: d.getUTCMonth() + 1 }; renderMonth(); };
   $('#printBtn').onclick = () => window.print();
+  $('#pngBtn').onclick = () => exportMonth('png');
+  $('#pdfBtn').onclick = () => exportMonth('pdf');
 
   // Einstellungen
   $('#citySearch').addEventListener('input', (e) => { clearTimeout(searchTimer); searchTimer = setTimeout(() => searchCity(e.target.value), 300); });

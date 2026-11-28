@@ -14,7 +14,8 @@ export const DEFAULTS = {
   modes: { fajr: 'athan', sunrise: 'off', dhuhr: 'athan', asr: 'athan', maghrib: 'athan', isha: 'athan' },
   pre: 0,                    // Minuten vorher erinnern
   clock: '24',
-  openOnAthan: false,        // nur Windows
+  openOnAthan: true,         // nur Windows: Fenster öffnet sich zum Athan
+  v: 2,                      // Stand der Einstellungen (2: Fenster zum Athan standardmäßig an)
   hijriAdj: 0,               // Hidschri-Datum: -1, 0, +1 Tag
   athanLength: 'full',       // 'full' = ganzer Athan, 'short' = die ersten Verse (bis zur Atempause vor 30 s)
   bark: { key: '', critical: false }, // iPhone: Athan-Ton bei gesperrtem Bildschirm über die App Bark
@@ -49,6 +50,8 @@ export function sanitize(s) {
   o.volume = Math.min(1, Math.max(0, +o.volume || 0));
   o.pre = [0, 5, 10, 15, 20, 30].includes(+o.pre) ? +o.pre : 0;
   o.hijriAdj = [-1, 0, 1].includes(+o.hijriAdj) ? +o.hijriAdj : 0;
+  if (!(+o.v >= 2)) { o.openOnAthan = true; o.v = 2; } // ältere Einstellungen: Fenster zum Athan einschalten
+  o.openOnAthan = o.openOnAthan !== false;
   o.athanLength = o.athanLength === 'short' ? 'short' : 'full';
   o.bark = { key: '', critical: false }; // Bark nicht mehr genutzt – alter Schlüssel wird beim Abgleich entfernt
   for (const k of Object.keys(DEFAULTS.modes)) if (!['athan', 'notify', 'off'].includes(o.modes[k])) o.modes[k] = DEFAULTS.modes[k];

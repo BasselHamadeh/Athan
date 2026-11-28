@@ -187,7 +187,11 @@
           <button class="icon-btn" id="prevMonth" type="button" aria-label="Vorheriger Monat"><svg><use href="#i-chev-l"/></svg></button>
           <h2 id="month-title"></h2>
           <button class="icon-btn" id="nextMonth" type="button" aria-label="Nächster Monat"><svg><use href="#i-chev-r"/></svg></button>
-          <button class="btn btn-ghost btn-sm print-btn" id="printBtn" type="button">Drucken</button>
+          <div class="month-actions print-btn" role="group" aria-label="Monat speichern">
+            <button class="btn btn-ghost btn-sm" id="printBtn" type="button">Drucken</button>
+            <button class="btn btn-ghost btn-sm" id="pngBtn" type="button">PNG</button>
+            <button class="btn btn-ghost btn-sm" id="pdfBtn" type="button">PDF</button>
+          </div>
         </header>
         <p class="sub month-place" id="monthPlace"></p>
         <div class="table-wrap">

@@ -264,6 +264,8 @@ a { color: var(--gold); }
 .month-head { align-items: center; }
 .month-head h2 { min-width: 11ch; text-align: center; }
 .print-btn { margin-left: auto; }
+.month-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+@media (max-width: 560px) { .month-head { flex-wrap: wrap; } .month-actions { margin-left: 0; width: 100%; justify-content: center; order: 5; } }
 .month-place { margin: 2px 0 12px; }
 .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border-top: 1px solid var(--gold-line); }
 table.month { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: .92rem; }

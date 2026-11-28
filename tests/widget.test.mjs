@@ -94,8 +94,14 @@ for (const c of cases) {
   ok('Sperrbildschirm: Neuladen zur Dhuhr-Minute', st.widget.refreshAfterDate.getTime() === t.dhuhr + 1500);
   const tx = texts(st.widget);
   ok('Sperrbildschirm: groß Dhuhr, klein Asr', tx[0] === 'Dhuhr' && tx[1] === fmt(t.dhuhr) && tx[2] === 'Asr' && tx[3] === fmt(t.asr), tx.join(' '));
-  const after = await run(code, { family: 'accessoryRectangular', now: t.dhuhr + 1500, cfg });
-  ok('Nach Dhuhr sofort Asr groß', texts(after.widget)[0] === 'Asr', texts(after.widget).join(' '));
+  const at = await run(code, { family: 'accessoryRectangular', now: t.dhuhr + 1500, cfg });
+  const tx2 = texts(at.widget);
+  ok('Zur Gebetszeit: „Dhuhr jetzt“ mit Kaaba', tx2[0] === 'Dhuhr' && tx2[1] === 'jetzt' && tx2[2] === 'Asr', tx2.join(' '));
+  ok('„jetzt“ endet nach 20 Minuten', at.widget.refreshAfterDate.getTime() === t.dhuhr + 20 * 60000 + 1500);
+  const after = await run(code, { family: 'accessoryRectangular', now: t.dhuhr + 20 * 60000 + 1500, cfg });
+  ok('Danach Asr groß', texts(after.widget)[0] === 'Asr', texts(after.widget).join(' '));
+  const md = await run(code, { family: 'medium', now: t.dhuhr + 5 * 60000, cfg });
+  ok('Mittel zur Gebetszeit: jetzt + Dhuhr hervorgehoben', texts(md.widget).includes('jetzt') && highlighted(md.widget).flat().includes('Dhuhr'));
 }
 // In der App (Tippen aufs Widget): große Ansicht, kein Hinweisfenster
 {
