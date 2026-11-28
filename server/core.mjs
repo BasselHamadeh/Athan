@@ -72,6 +72,7 @@ export function barkPayload(settings, data, origin) {
     level: athan ? (b.critical ? 'critical' : 'timeSensitive') : (data.prayer ? 'timeSensitive' : 'active'),
   };
   if (athan) {
+    p.image = `${origin}/img/makkah.jpg`; // Mekka-Bild in der Mitteilung (auch auf dem Sperrbildschirm)
     p.soundUrl = `${origin}/sounds/${/^[a-z0-9_]{1,40}$/.test(voice || '') ? voice : 'makkah_mulla'}.caf`;
     p.sound = 'athan'; // in Bark unter „Custom Sounds“ importierter Athan – falls soundUrl nicht geht
     if (b.critical) p.volume = 8;

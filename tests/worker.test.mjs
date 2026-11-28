@@ -174,6 +174,7 @@ globalThis.fetch = realFetch;
   const d = bark.at(-1);
   ok('Dhuhr über Bark', rr.sent === 1 && bark.length === 1 && inbox.length === pushes, d?.title);
   ok('Bark: Athan-Ton als soundUrl, Ersatz = importierter „athan“', d?.soundUrl === 'https://athan.basselhamadeh3.workers.dev/sounds/abdulbaset.caf' && d.sound === 'athan');
+  ok('Bark: Mekka-Bild in der Mitteilung', d?.image === 'https://athan.basselhamadeh3.workers.dev/img/makkah.jpg');
   ok('Bark: zeitkritisch, Gruppe, Symbol', d?.level === 'timeSensitive' && d.group === 'Athan' && d.icon.endsWith('/icons/icon-192.png') && d.device_key === key);
   const tf = computeDay({ y: 2026, m: 11, d: 28 }, berlin, { method: 'MWL' });
   await runMinute(tf.fajr, env);
