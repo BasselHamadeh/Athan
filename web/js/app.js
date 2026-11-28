@@ -8,7 +8,7 @@ import { initSky } from './sky.js';
 import { skyAt } from './palette.js';
 import { monthCanvas, pngBlob, pdfBlob, saveFile } from './export.js';
 
-const VERSION = '1.5.1';
+const VERSION = '1.5.2';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

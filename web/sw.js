@@ -1,5 +1,5 @@
 // Service Worker: Offline-Betrieb und Push-Benachrichtigungen
-const CACHE = 'athan-v1.5.1';
+const CACHE = 'athan-v1.5.2';
 const SHELL = [
   './', 'index.html', 'css/app.css', 'js/app.js', 'js/praytimes.js', 'js/store.js', 'js/audio.js', 'js/platform.js', 'js/astro.js', 'js/hijri.js', 'js/sky.js', 'js/palette.js', 'js/export.js',
   'widget/athan-widget.js',

@@ -484,18 +484,18 @@ function lockRect(d) {
   if (!d.next) { text(w, 'Athan', Font.semiboldSystemFont(15), Color.white()); return w; }
   w.addSpacer();
   const a = hstack(w, 5);
-  if (d.isNow) kaaba(a, 15, Color.white()); else symbol(a, d.next.prayer, 13, Color.white());
-  text(a, shownName(d, d.next), Font.boldSystemFont(18), Color.white(), { scale: 0.6 });
+  if (d.isNow) kaaba(a, 13, Color.white()); else symbol(a, d.next.prayer, 11, Color.white());
+  text(a, shownName(d, d.next), Font.semiboldSystemFont(15), Color.white(), { scale: 0.6 });
   a.addSpacer();
-  text(a, d.isNow ? 'jetzt' : fmt(d.next.at), Font.boldRoundedSystemFont(18), Color.white(), { scale: 0.6 });
+  text(a, d.isNow ? 'jetzt' : fmt(d.next.at), Font.semiboldRoundedSystemFont(15), Color.white(), { scale: 0.6 });
   const n = d.after[0];
   if (n) {
     w.addSpacer(3);
     const b = hstack(w, 5);
-    symbol(b, n.prayer, 10, new Color('#FFFFFF', 0.62));
-    text(b, NAMES[n.prayer][0], Font.semiboldSystemFont(13), Color.white(), { opacity: 0.62 });
+    symbol(b, n.prayer, 9, new Color('#FFFFFF', 0.62));
+    text(b, NAMES[n.prayer][0], Font.mediumSystemFont(12), Color.white(), { opacity: 0.62 });
     b.addSpacer();
-    text(b, fmt(n.at), Font.semiboldRoundedSystemFont(13), Color.white(), { opacity: 0.62 });
+    text(b, fmt(n.at), Font.mediumRoundedSystemFont(12), Color.white(), { opacity: 0.62 });
   }
   w.addSpacer();
   return w;
@@ -506,7 +506,7 @@ function lockCircle(d) {
   w.setPadding(2, 2, 2, 2);
   if (!d.next) return w;
   const s = hstack(w); s.addSpacer(); if (d.isNow) kaaba(s, 13, Color.white()); else symbol(s, d.next.prayer, 11, Color.white()); s.addSpacer();
-  const b = hstack(w); b.addSpacer(); text(b, d.isNow ? 'jetzt' : fmt(d.next.at), Font.boldRoundedSystemFont(15), Color.white(), { scale: 0.6 }); b.addSpacer();
+  const b = hstack(w); b.addSpacer(); text(b, d.isNow ? 'jetzt' : fmt(d.next.at), Font.semiboldRoundedSystemFont(13), Color.white(), { scale: 0.6 }); b.addSpacer();
   const a = hstack(w); a.addSpacer(); text(a, shownName(d, d.next), Font.semiboldSystemFont(10), Color.white(), { scale: 0.6, opacity: 0.8 }); a.addSpacer();
   return w;
 }
