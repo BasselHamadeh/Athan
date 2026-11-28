@@ -320,6 +320,21 @@
               <button class="btn btn-ghost btn-sm" id="widgetCopy" type="button">Code kopieren</button>
             </div>
             <textarea class="widget-code" id="widgetCode" readonly hidden aria-label="Widget-Code"></textarea>
+            <div id="barkBox" hidden>
+              <h4>Athan-Ton bei gesperrtem iPhone (Bark)</h4>
+              <div class="inline-form">
+                <label class="visually-hidden" for="barkKey">Aus Bark kopierter Text</label>
+                <input id="barkKey" type="url" inputmode="url" placeholder="In Bark „Copy“ – hier einfügen" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+                <button class="btn btn-gold btn-sm" id="barkSave" type="button">Speichern</button>
+              </div>
+              <label class="switch"><input type="checkbox" id="barkCritical"><span>Auch wenn das iPhone lautlos ist</span></label>
+              <p class="status-line" id="barkStatus"></p>
+              <div class="btn-row" id="barkActions" hidden>
+                <button class="btn btn-ghost btn-sm" id="barkTest" type="button">Testen</button>
+                <a class="btn btn-ghost btn-sm" id="barkSound" href="athan.caf" download="athan.caf">Athan-Ton laden</a>
+                <button class="btn btn-ghost btn-sm" id="barkRemove" type="button">Trennen</button>
+              </div>
+            </div>
             <details class="adjust">
               <summary>Minuten an deine Moschee anpassen</summary>
               <div class="adjust-grid" id="adjustGrid"></div>

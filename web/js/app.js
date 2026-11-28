@@ -1,5 +1,5 @@
 import { computeDay, upcomingEvents, zonedParts, addDays, qiblaBearing, distanceToKaabaKm, sunAltitude, METHODS, PRAYERS, suggestMethod, isValidTimeZone } from './praytimes.js';
-import { loadLocal, saveLocal, sanitize, DEFAULTS } from './store.js';
+import { loadLocal, saveLocal, sanitize, DEFAULTS, barkKey } from './store.js';
 import { Player, saveCustom, loadCustom } from './audio.js';
 import * as plat from './platform.js';
 import { moonPosition, moonIllumination, moonLitPath, moonRotation } from './astro.js';
@@ -8,7 +8,7 @@ import { initSky } from './sky.js';
 import { skyAt } from './palette.js';
 import { monthCanvas, pngBlob, pdfBlob, saveFile } from './export.js';
 
-const VERSION = '1.5.0';
+const VERSION = '1.5.1';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -316,7 +316,7 @@ async function fire(e) {
   const title = e.test ? 'Athan – Test' : e.prayer === 'sunrise' ? `Sonnenaufgang (${L.ar})`
     : inRamadan && e.prayer === 'maghrib' ? `Iftar: Zeit für Maghrib (${L.ar})`
     : inRamadan && e.prayer === 'fajr' ? `Suhoor endet: Zeit für Fajr (${L.ar})` : `Zeit für ${L.name} (${L.ar})`;
-  plat.showNotification(title, {
+  if (!e.fromPush) plat.showNotification(title, {
     body: `${fmtTime(e.at)} · ${S.location.name}`, tag: e.test ? 'athan-test' : `prayer-${e.prayer}-${e.at}`, requireInteraction: mode === 'athan' && !e.test,
   });
   if (mode === 'athan' && e.prayer !== 'sunrise') {
@@ -586,8 +586,10 @@ let widgetLink = { server: '', id: '' };
 async function renderIphone() {
   const show = plat.isIOS && !plat.isDesktop;
   $('#widgetRow').hidden = !show;
+  $('#barkBox').hidden = !show;
   if (!show) return;
   loadWidgetTemplate();
+  renderBark();
   try {
     const info = await plat.detectServer();
     if (!info?.push) { widgetLink = { server: '', id: '' }; return; }
@@ -599,6 +601,45 @@ async function renderIphone() {
     }
     widgetLink = { server: location.origin, id };
   } catch { /* ohne Verknüpfung: Widget rechnet mit dem eingebetteten Ort */ }
+}
+
+// Bark: spielt den Athan als Mitteilungston, auch wenn das iPhone gesperrt ist
+async function renderBark() {
+  const key = S.bark.key, st = $('#barkStatus'), input = $('#barkKey');
+  if (document.activeElement !== input) input.value = key ? `https://api.day.app/${key}/` : '';
+  $('#barkCritical').checked = S.bark.critical;
+  $('#barkActions').hidden = !key;
+  $('#barkSound').href = `athan.caf?v=${encodeURIComponent(soundFor('dhuhr'))}`;
+  st.classList.remove('warn');
+  if (!key) { st.innerHTML = ''; return; }
+  const info = await plat.detectServer();
+  if (!info?.push) { st.innerHTML = '<b>Nicht möglich.</b> Öffne Athan über deine Cloudflare-Adresse.'; st.classList.add('warn'); return; }
+  if (plat.notifPermission() !== 'granted') { st.innerHTML = '<b>Fast fertig.</b> Erlaube oben noch die Benachrichtigungen.'; st.classList.add('warn'); return; }
+  st.innerHTML = `<b>Aktiv.</b> Athan zu jeder Gebetszeit, auch gesperrt${S.bark.critical ? ' und lautlos' : ''}. Kommt nur ein Glockenton: „Athan-Ton laden“ und in Bark unter Custom Sounds hinzufügen.`;
+}
+
+async function saveBark() {
+  const raw = $('#barkKey').value;
+  const key = barkKey(raw);
+  if (!key) {
+    toast(/YOUR_KEY/.test(raw) ? 'In Bark zuerst „Enable“ tippen – dann steht dort dein Schlüssel statt YOUR_KEY. Danach „Copy“.'
+      : 'Kein Bark-Schlüssel gefunden. In Bark auf „Copy“ tippen und hier einfügen.', 6000);
+    return;
+  }
+  if (plat.notifPermission() !== 'granted') { await enableAll(); if (plat.notifPermission() !== 'granted') return; }
+  commit({ bark: { key, critical: $('#barkCritical').checked } });
+  $('#barkKey').blur();
+  await barkTest(true);
+}
+async function barkTest(saved = false) {
+  try {
+    const r = await plat.syncPush(pushSettings());
+    if (!r?.ok) throw new Error(r?.reason);
+    const t = await plat.testPush(0);
+    if (!t) { toast('Bitte 10 Sekunden warten und noch einmal testen.', 4000); return; }
+    toast(t.via === 'bark' ? `${saved ? 'Gespeichert. ' : ''}Gleich kommt die Mitteilung mit Athan.` : 'Bark hat nicht geantwortet. In Bark erneut „Copy“ und hier einfügen.', 6000);
+  } catch { toast('Erst Benachrichtigungen erlauben (Athan über die Cloudflare-Adresse öffnen).', 6000); }
+  renderBark();
 }
 
 // Widget-Code (Scriptable): Vorlage vorab laden, damit das Kopieren direkt im Tippen passiert (iOS verlangt das)
@@ -819,6 +860,11 @@ function bind() {
     toast(r.value === 'short' ? 'Athan: die ersten Verse' : 'Athan: ganz');
   }));
   $('#widgetCopy').onclick = copyWidget;
+  $('#barkSave').onclick = saveBark;
+  $('#barkKey').addEventListener('keydown', (e) => { if (e.key === 'Enter') saveBark(); });
+  $('#barkCritical').onchange = (e) => { if (S.bark.key) commit({ bark: { ...S.bark, critical: e.target.checked } }); };
+  $('#barkTest').onclick = () => barkTest(false);
+  $('#barkRemove').onclick = () => { commit({ bark: { key: '', critical: false } }); toast('Bark getrennt', 3000); };
 
   $('#notifyEnable').onclick = enableAll;
   $('#notifyTest').onclick = async () => {
@@ -856,7 +902,7 @@ function bind() {
     const d = e.data || {};
     if (d.type === 'athan' && d.prayer && !player.playing) {
       const key = `${d.prayer}:${d.at}`;
-      if (!fired.has(key)) { remember(key); fire({ prayer: d.prayer, at: d.at, date: zonedParts(d.at, tz()) }); }
+      if (!fired.has(key)) { remember(key); fire({ prayer: d.prayer, at: d.at, date: zonedParts(d.at, tz()), fromPush: true }); }
     }
   });
 

@@ -1,10 +1,10 @@
 // Service Worker: Offline-Betrieb und Push-Benachrichtigungen
-const CACHE = 'athan-v1.5.0';
+const CACHE = 'athan-v1.5.1';
 const SHELL = [
   './', 'index.html', 'css/app.css', 'js/app.js', 'js/praytimes.js', 'js/store.js', 'js/audio.js', 'js/platform.js', 'js/astro.js', 'js/hijri.js', 'js/sky.js', 'js/palette.js', 'js/export.js',
   'widget/athan-widget.js',
   'muezzins.json', 'config.json', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/badge-96.png',
-  'icons/apple-touch-icon.png', 'icons/icon-ramadan.svg',
+  'icons/apple-touch-icon.png', 'icons/icon-ramadan.svg', 'img/makkah.svg',
 ];
 
 self.addEventListener('install', (e) => {

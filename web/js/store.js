@@ -53,7 +53,7 @@ export function sanitize(s) {
   if (!(+o.v >= 2)) { o.openOnAthan = true; o.v = 2; } // ältere Einstellungen: Fenster zum Athan einschalten
   o.openOnAthan = o.openOnAthan !== false;
   o.athanLength = o.athanLength === 'short' ? 'short' : 'full';
-  o.bark = { key: '', critical: false }; // Bark nicht mehr genutzt – alter Schlüssel wird beim Abgleich entfernt
+  o.bark = { key: barkKey(o.bark?.key), critical: o.bark?.critical === true };
   for (const k of Object.keys(DEFAULTS.modes)) if (!['athan', 'notify', 'off'].includes(o.modes[k])) o.modes[k] = DEFAULTS.modes[k];
   for (const k of Object.keys(DEFAULT_CALC.adjust)) o.calc.adjust[k] = Math.max(-60, Math.min(60, Math.round(+o.calc.adjust[k] || 0)));
   return o;

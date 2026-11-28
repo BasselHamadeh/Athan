@@ -371,10 +371,12 @@ details.more[open] > summary::after { transform: rotate(-135deg); }
 /* Athan-Overlay */
 .athan-overlay {
   position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 24px;
-  background: radial-gradient(90% 60% at 50% 100%, rgba(216, 178, 110, .28), transparent 70%), rgba(5, 13, 32, .94);
+  /* Mekka bei Nacht im Hintergrund, oben abgedunkelt für den Text */
+  background: linear-gradient(180deg, rgba(3, 8, 22, .82) 0%, rgba(3, 8, 22, .55) 40%, rgba(3, 8, 22, .3) 70%, rgba(3, 8, 22, .05) 100%),
+    url(../img/makkah.svg) center bottom / cover no-repeat, #050D20;
   backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
 }
-.ov-inner { max-width: 560px; text-align: center; }
+.ov-inner { max-width: 560px; text-align: center; text-shadow: 0 2px 18px rgba(0, 0, 0, .75); }
 .ov-label { margin: 0; color: var(--parchment-2); }
 .ov-name { margin: 4px 0 0; font: 500 clamp(3rem, 12vw, 4.5rem)/1 var(--serif); }
 .ov-ar { margin: 8px 0 0; font: 2.4rem/1.3 var(--arabic); color: var(--gold); }

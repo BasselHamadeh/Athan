@@ -1,9 +1,9 @@
-// Athan-Widget für Scriptable (iPhone) – Version 1.5.0
+// Athan-Widget für Scriptable (iPhone) – Version 1.5.1
 // https://github.com/BasselHamadeh/Athan · keine Werbung, kein Tracking, rechnet ohne Internet.
 // Aktualisiert sich selbst und übernimmt Ort und Einstellungen aus der Athan-App.
 
 const CONFIG = /*CONFIG*/{"name":"","lat":null,"lon":null,"tz":"","calc":{"method":"MWL","asr":"standard","highLat":"angle","adjust":{}},"clock":"24","hijriAdj":0}/*END*/;
-const WIDGET_VERSION = '1.5.0';
+const WIDGET_VERSION = '1.5.1';
 
 // ---- praytimes.js ----
 const M_praytimes = (() => {
