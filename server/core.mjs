@@ -140,7 +140,8 @@ export function messagesFor(settings, from, to) {
   for (const e of events) {
     const mode = modes[e.prayer];
     if (!mode || mode === 'off') continue;
-    if (e.at > from && e.at <= to) out.push({ key: `${e.prayer}:${e.at}`, ttl: 900, data: prayerData(settings, e, mode) });
+    // 8 Std. gültig: ist das Handy offline (z. B. Flugmodus), kommt die Mitteilung, sobald es wieder online ist
+    if (e.at > from && e.at <= to) out.push({ key: `${e.prayer}:${e.at}`, ttl: 8 * 3600, data: prayerData(settings, e, mode) });
     if (pre > 0) {
       const p = e.at - pre * 60000;
       if (p > from && p <= to) {
